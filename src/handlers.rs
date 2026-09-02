@@ -579,24 +579,26 @@ pub async fn upload_image(
                 )
             }
             Some("image") => {
-                image = Some(
-                    field
-                        .bytes()
-                        .await
-                        .map_err(|_| AppError::Validation("이미지를 읽지 못했습니다.".into()))?,
-                )
+                let original_name = field.file_name().unwrap_or("image").to_owned();
+                let bytes = field
+                    .bytes()
+                    .await
+                    .map_err(|_| AppError::Validation("이미지를 읽지 못했습니다.".into()))?;
+                image = Some((original_name, bytes));
             }
             _ => {}
         }
     }
     verify_csrf(&session.csrf, csrf.as_deref().unwrap_or_default())?;
-    let image = image.ok_or_else(|| AppError::Validation("이미지를 선택해주세요.".into()))?;
+    let (original_name, image) =
+        image.ok_or_else(|| AppError::Validation("이미지를 선택해주세요.".into()))?;
     if image.is_empty() || image.len() > state.config.max_upload_bytes {
         return Err(AppError::Validation("이미지는 5MB 이하여야 합니다.".into()));
     }
     let kind = infer::get(&image)
         .ok_or_else(|| AppError::Validation("이미지 파일을 확인할 수 없습니다.".into()))?;
-    let extension = match kind.mime_type() {
+    let mime_type = kind.mime_type();
+    let extension = match mime_type {
         "image/jpeg" => "jpg",
         "image/png" => "png",
         "image/gif" => "gif",
@@ -607,8 +609,20 @@ pub async fn upload_image(
             ));
         }
     };
-    let filename = format!("{}.{}", Uuid::new_v4(), extension);
-    tokio::fs::write(state.config.upload_dir.join(&filename), &image).await?;
+    let id = Uuid::new_v4();
+    let filename = format!("{id}.{extension}");
+    let path = state.config.upload_dir.join(&filename);
+    tokio::fs::write(&path, &image).await?;
+    if let Err(error) = state
+        .image_service
+        .register(id, &filename, &original_name, mime_type, image.len())
+        .await
+    {
+        if let Err(remove_error) = tokio::fs::remove_file(&path).await {
+            tracing::warn!(file = %filename, error = ?remove_error, "unregistered image cleanup failed");
+        }
+        return Err(error);
+    }
     let url = format!("/uploads/{filename}");
     Ok(Json(UploadResponse {
         markdown: format!("![이미지]({url})"),

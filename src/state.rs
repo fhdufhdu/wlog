@@ -1,6 +1,6 @@
 use crate::{
-    about::service::AboutService, auth::Auth, config::Config, post::service::PostService,
-    topic::service::TopicService,
+    about::service::AboutService, auth::Auth, config::Config, image::service::ImageService,
+    post::service::PostService, topic::service::TopicService,
 };
 use axum::extract::FromRef;
 use axum_extra::extract::cookie::Key;
@@ -13,6 +13,7 @@ pub struct AppState {
     pub post_service: PostService,
     pub topic_service: TopicService,
     pub about_service: AboutService,
+    pub image_service: ImageService,
     pub auth: Auth,
     pub cookie_key: Key,
     pub config: Arc<Config>,

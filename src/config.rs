@@ -16,6 +16,7 @@ pub struct Config {
     pub secure_cookie: bool,
     pub upload_dir: PathBuf,
     pub max_upload_bytes: usize,
+    pub image_orphan_grace_hours: i64,
 }
 
 impl Config {
@@ -37,6 +38,14 @@ impl Config {
         let max_upload_bytes = value("MAX_UPLOAD_BYTES", "5242880")
             .parse()
             .map_err(|e| AppError::Config(format!("MAX_UPLOAD_BYTES: {e}")))?;
+        let image_orphan_grace_hours = value("IMAGE_ORPHAN_GRACE_HOURS", "24")
+            .parse()
+            .map_err(|e| AppError::Config(format!("IMAGE_ORPHAN_GRACE_HOURS: {e}")))?;
+        if image_orphan_grace_hours < 1 {
+            return Err(AppError::Config(
+                "IMAGE_ORPHAN_GRACE_HOURS는 1 이상이어야 합니다".into(),
+            ));
+        }
         Ok(Self {
             bind_addr,
             database_url: env::var("DATABASE_URL")
@@ -65,6 +74,7 @@ impl Config {
             session_secret,
             upload_dir: PathBuf::from(value("UPLOAD_DIR", "uploads")),
             max_upload_bytes,
+            image_orphan_grace_hours,
         })
     }
 }

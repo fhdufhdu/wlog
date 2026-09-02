@@ -6,6 +6,7 @@ use comrak::{
     options::{Plugins, RenderPlugins},
     parse_document,
 };
+use std::collections::HashSet;
 
 pub fn render(markdown: &str) -> String {
     let mut options = Options::default();
@@ -64,6 +65,26 @@ pub fn excerpt(markdown: &str, limit: usize) -> String {
         .collect()
 }
 
+pub fn upload_names(markdown: &str) -> HashSet<String> {
+    let arena = Arena::new();
+    let root = parse_document(&arena, markdown, &Options::default());
+    root.descendants()
+        .filter_map(|node| match &node.data().value {
+            NodeValue::Image(link) => upload_name(&link.url),
+            _ => None,
+        })
+        .collect()
+}
+
+fn upload_name(url: &str) -> Option<String> {
+    let path = url.split(['?', '#']).next()?;
+    let name = path.strip_prefix("/uploads/")?;
+    if name.is_empty() || name.contains('/') || name.contains('\\') {
+        return None;
+    }
+    Some(name.to_owned())
+}
+
 #[cfg(test)]
 mod tests {
     #[test]
@@ -92,5 +113,15 @@ mod tests {
         let html = super::render("첫째 줄\n둘째 줄");
         assert!(html.contains("첫째 줄<br"));
         assert!(html.contains("둘째 줄"));
+    }
+
+    #[test]
+    fn extracts_only_managed_markdown_images() {
+        let names = super::upload_names(
+            "![첫째](/uploads/one.webp)\n![외부](https://example.com/two.png)\n![잘못됨](/uploads/sub/three.png)\n![넷째](/uploads/four.jpg?size=2)",
+        );
+        assert_eq!(names.len(), 2);
+        assert!(names.contains("one.webp"));
+        assert!(names.contains("four.jpg"));
     }
 }

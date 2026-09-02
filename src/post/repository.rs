@@ -132,7 +132,11 @@ impl PostRepository {
         .await
     }
 
-    pub async fn publish_temp(&self, temp: &TempPost) -> Result<Post, sqlx::Error> {
+    pub async fn publish_temp(
+        &self,
+        temp: &TempPost,
+        image_names: &[String],
+    ) -> Result<Post, sqlx::Error> {
         let mut transaction = self.pool.begin().await?;
         let now = Utc::now();
         let post = if let Some(post_id) = temp.post_id {
@@ -177,6 +181,24 @@ impl PostRepository {
             .fetch_one(&mut *transaction)
             .await?
         };
+        sqlx::query(
+            "UPDATE images SET post_id = NULL, updated_at = $3
+             WHERE post_id = $1 AND NOT (storage_name = ANY($2::TEXT[]))",
+        )
+        .bind(post.id)
+        .bind(image_names)
+        .bind(now)
+        .execute(&mut *transaction)
+        .await?;
+        sqlx::query(
+            "UPDATE images SET post_id = $1, updated_at = $3
+             WHERE post_id IS NULL AND storage_name = ANY($2::TEXT[])",
+        )
+        .bind(post.id)
+        .bind(image_names)
+        .bind(now)
+        .execute(&mut *transaction)
+        .await?;
         sqlx::query("DELETE FROM temp_posts WHERE id = $1")
             .bind(temp.id)
             .execute(&mut *transaction)
@@ -186,12 +208,21 @@ impl PostRepository {
     }
 
     pub async fn delete(&self, id: Uuid) -> Result<bool, sqlx::Error> {
-        Ok(sqlx::query("DELETE FROM posts WHERE id = $1")
+        let mut transaction = self.pool.begin().await?;
+        let now = Utc::now();
+        sqlx::query("UPDATE images SET post_id = NULL, updated_at = $2 WHERE post_id = $1")
             .bind(id)
-            .execute(&self.pool)
+            .bind(now)
+            .execute(&mut *transaction)
+            .await?;
+        let deleted = sqlx::query("DELETE FROM posts WHERE id = $1")
+            .bind(id)
+            .execute(&mut *transaction)
             .await?
             .rows_affected()
-            == 1)
+            == 1;
+        transaction.commit().await?;
+        Ok(deleted)
     }
 
     pub async fn delete_temp(&self, id: Uuid) -> Result<bool, sqlx::Error> {

@@ -84,7 +84,13 @@ impl PostService {
             updated_at: Utc::now(),
         };
         let saved = self.repository.update_temp(&temp).await.map_err(db_error)?;
-        self.repository.publish_temp(&saved).await.map_err(db_error)
+        let image_names: Vec<String> = markdown::upload_names(&saved.content_markdown)
+            .into_iter()
+            .collect();
+        self.repository
+            .publish_temp(&saved, &image_names)
+            .await
+            .map_err(db_error)
     }
     pub async fn delete(&self, id: Uuid) -> Result<(), AppError> {
         if self.repository.delete(id).await? {
