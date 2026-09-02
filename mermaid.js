@@ -5,28 +5,34 @@ let renderQueue = Promise.resolve();
 
 function loadMermaid() {
   if (!mermaidPromise) {
-    mermaidPromise = import(MERMAID_MODULE).then(({ default: mermaid }) => {
-      const dark = window.matchMedia("(prefers-color-scheme: dark)").matches;
-      mermaid.initialize({
-        startOnLoad: false,
-        securityLevel: "strict",
-        theme: dark ? "dark" : "base",
-        fontFamily: "SUIT, system-ui, sans-serif",
-        suppressErrorRendering: true,
-        themeVariables: dark ? undefined : {
-          primaryColor: "#dff3f8",
-          primaryTextColor: "#1b1d20",
-          primaryBorderColor: "#117696",
-          lineColor: "#626974",
-          secondaryColor: "#f2f4f7",
-          tertiaryColor: "#fafbfc",
-          fontSize: "15px",
-        },
-      });
-      return mermaid;
-    });
+    mermaidPromise = import(MERMAID_MODULE).then(({ default: mermaid }) => mermaid);
   }
   return mermaidPromise;
+}
+
+function isDarkTheme() {
+  const selected = document.documentElement.dataset.theme;
+  return selected ? selected === "dark" : window.matchMedia("(prefers-color-scheme: dark)").matches;
+}
+
+function initializeMermaid(mermaid) {
+  const dark = isDarkTheme();
+  mermaid.initialize({
+    startOnLoad: false,
+    securityLevel: "strict",
+    theme: dark ? "dark" : "base",
+    fontFamily: "SUIT, system-ui, sans-serif",
+    suppressErrorRendering: true,
+    themeVariables: dark ? undefined : {
+      primaryColor: "#dff3f8",
+      primaryTextColor: "#1b1d20",
+      primaryBorderColor: "#117696",
+      lineColor: "#626974",
+      secondaryColor: "#f2f4f7",
+      tertiaryColor: "#fafbfc",
+      fontSize: "15px",
+    },
+  });
 }
 
 function collectDiagrams(root) {
@@ -35,10 +41,14 @@ function collectDiagrams(root) {
     const diagram = document.createElement("div");
     diagram.className = "mermaid mermaid-loading";
     diagram.setAttribute("aria-busy", "true");
+    diagram.dataset.mermaidSource = source;
     diagram.textContent = source;
     code.parentElement.replaceWith(diagram);
-    return { diagram, source };
   });
+  return [...root.querySelectorAll(".mermaid.mermaid-loading[data-mermaid-source]")].map((diagram) => ({
+    diagram,
+    source: diagram.dataset.mermaidSource,
+  }));
 }
 
 function showDiagramError(diagram, source) {
@@ -63,6 +73,7 @@ async function renderRoot(root) {
   let mermaid;
   try {
     mermaid = await loadMermaid();
+    initializeMermaid(mermaid);
   } catch (error) {
     console.error("Mermaid 모듈을 불러오지 못했습니다.", error);
     diagrams.forEach(({ diagram, source }) => showDiagramError(diagram, source));
@@ -90,6 +101,16 @@ function renderMermaid(root = document) {
 
 window.addEventListener("wlog:markdown-rendered", (event) => {
   renderMermaid(event.detail?.root || document);
+});
+
+window.addEventListener("wlog:theme-changed", () => {
+  document.querySelectorAll(".mermaid[data-mermaid-source]").forEach((diagram) => {
+    diagram.textContent = diagram.dataset.mermaidSource;
+    diagram.classList.add("mermaid-loading");
+    diagram.setAttribute("aria-busy", "true");
+    diagram.removeAttribute("data-processed");
+  });
+  renderMermaid();
 });
 
 if (document.readyState === "loading") {

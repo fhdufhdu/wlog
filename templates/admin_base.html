@@ -4,13 +4,16 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="robots" content="noindex,nofollow">
+  <meta name="theme-color" content="#f2f4f7">
+  <link rel="icon" href="/assets/favicon.svg" type="image/svg+xml">
   <title>{{ page_title }} — {{ site_name }}</title>
+  <script src="/theme.js"></script>
   <link rel="stylesheet" href="/styles.css">
 </head>
 <body class="admin-body {% block body_class %}{% endblock %}">
   <header class="admin-header">
     <a class="site-title" href="/admin">{{ site_name }} 관리</a>
-    <nav>{% block admin_nav %}{% endblock %}</nav>
+    <nav>{% block admin_nav %}{% endblock %}<button class="theme-toggle" type="button" data-theme-toggle aria-label="다크 모드로 전환" aria-pressed="false">다크</button></nav>
   </header>
   {% block admin_content %}{% endblock %}
   {% block admin_scripts %}{% endblock %}

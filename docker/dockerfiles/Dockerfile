@@ -8,7 +8,7 @@ RUN apt-get update \
 WORKDIR /app
 
 COPY --chown=wlog:wlog target/release/wlog /app/wlog
-COPY --chown=wlog:wlog styles.css admin.js mermaid.js /app/
+COPY --chown=wlog:wlog styles.css admin.js mermaid.js theme.js /app/
 COPY --chown=wlog:wlog assets /app/assets
 
 RUN mkdir -p /app/uploads && chown wlog:wlog /app/uploads

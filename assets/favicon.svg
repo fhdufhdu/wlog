@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <style>
+    .paper { fill: #f2f4f7; }
+    .mark { fill: #1b1d20; }
+    .register { fill: #117696; }
+    @media (prefers-color-scheme: dark) {
+      .paper { fill: #171a1f; }
+      .mark { fill: #f0f2f5; }
+      .register { fill: #82d0e8; }
+    }
+  </style>
+  <rect class="paper" width="64" height="64"/>
+  <rect class="register" x="8" y="8" width="48" height="5"/>
+  <path class="mark" d="M8 18h9l5 25 7-19h6l7 19 5-25h9l-8 36H38l-6-17-6 17H16z"/>
+</svg>

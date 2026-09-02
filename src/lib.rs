@@ -86,6 +86,7 @@ pub fn build_router(state: AppState) -> Router {
         .route("/health/ready", get(handlers::health_ready))
         .route_service("/styles.css", ServeFile::new("styles.css"))
         .route_service("/admin.js", ServeFile::new("admin.js"))
+        .route_service("/theme.js", ServeFile::new("theme.js"))
         .route_service("/mermaid.js", ServeFile::new("mermaid.js"))
         .nest_service("/assets", ServeDir::new("assets"))
         .nest_service(
