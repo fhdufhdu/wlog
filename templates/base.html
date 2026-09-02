@@ -25,7 +25,9 @@
   <a class="skip-link" href="#main">본문으로 건너뛰기</a>
   <header class="site-header">
     <div class="site-mark"><a class="site-title" href="/">{{ site_name }}</a></div>
-    <nav class="site-nav" aria-label="주요 메뉴"><a href="/">글</a><a href="/about">소개</a><a href="/admin">관리</a><button class="theme-toggle" type="button" data-theme-toggle aria-label="다크 모드로 전환" aria-pressed="false">다크</button></nav>
+    <nav class="site-nav" aria-label="주요 메뉴">
+      <a href="/">글</a><a href="/about">소개</a><a href="/admin">관리</a>{% include "theme_toggle.html" %}
+    </nav>
   </header>
   {% block content %}{% endblock %}
   <footer class="site-footer"><p>© 2026 {{ site_name }}</p><p><a href="/sitemap.xml">사이트맵</a></p></footer>

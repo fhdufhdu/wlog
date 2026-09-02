@@ -22,9 +22,12 @@ function updateThemeUi(notify = false) {
   const theme = currentTheme();
   const dark = theme === "dark";
   document.querySelectorAll("[data-theme-toggle]").forEach((button) => {
-    button.textContent = dark ? "라이트" : "다크";
-    button.setAttribute("aria-label", dark ? "라이트 모드로 전환" : "다크 모드로 전환");
+    const label = dark ? "라이트 모드로 전환" : "다크 모드로 전환";
+    button.dataset.theme = theme;
+    button.setAttribute("aria-label", label);
     button.setAttribute("aria-pressed", String(dark));
+    const hiddenLabel = button.querySelector("[data-theme-label]");
+    if (hiddenLabel) hiddenLabel.textContent = label;
   });
   document.querySelectorAll('meta[name="theme-color"]').forEach((meta) => {
     meta.content = dark ? "#171a1f" : "#f2f4f7";

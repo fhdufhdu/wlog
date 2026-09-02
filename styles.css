@@ -196,23 +196,33 @@ input:-webkit-autofill:focus {
 }
 .site-title:hover { color: var(--link); }
 
-.site-nav { display: flex; flex-wrap: wrap; gap: 6px 22px; font-size: 13px; font-weight: 600; }
-.site-nav a { text-decoration: none; }
+.site-nav { display: flex; flex-wrap: wrap; align-items: center; gap: 0 18px; font-size: 13px; font-weight: 600; }
+.site-nav a { display: inline-flex; min-height: 44px; align-items: center; text-decoration: none; }
 .theme-toggle {
+  display: inline-grid;
+  width: 44px;
   min-height: 44px;
+  place-items: center;
   border: 0;
-  padding: 6px 0;
+  padding: 0;
   background: transparent;
   color: var(--link);
   cursor: pointer;
-  font: inherit;
-  font-weight: 650;
-  text-decoration: underline;
-  text-decoration-thickness: 1px;
-  text-underline-offset: .2em;
 }
 .theme-toggle:hover { color: var(--signal); }
-.site-nav .theme-toggle { min-height: auto; }
+.theme-icon {
+  width: 20px;
+  height: 20px;
+  grid-area: 1 / 1;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: square;
+  stroke-linejoin: miter;
+  stroke-width: 1.8;
+}
+.theme-icon-sun,
+.theme-toggle[data-theme="dark"] .theme-icon-moon { display: none; }
+.theme-toggle[data-theme="dark"] .theme-icon-sun { display: block; }
 
 .page-layout {
   display: grid;
@@ -551,7 +561,7 @@ input:-webkit-autofill:focus {
 .admin-header nav { display: flex; align-items: center; gap: 8px; }
 .admin-header nav a { display: inline-flex; min-height: 44px; align-items: center; padding: 6px 8px; }
 .admin-header form { margin: 0; }
-.admin-header button, .danger-button { border: 0; background: transparent; color: var(--link); cursor: pointer; text-decoration: underline; text-underline-offset: .2em; }
+.admin-header button:not(.theme-toggle), .danger-button { border: 0; background: transparent; color: var(--link); cursor: pointer; text-decoration: underline; text-underline-offset: .2em; }
 .admin-main, .editor-shell { max-width: 1180px; margin: 0 auto; }
 .admin-posts article { display: flex; min-height: 92px; align-items: center; justify-content: space-between; gap: 24px; border-bottom: 1px solid var(--rule); padding: 14px 0; }
 .admin-posts h2 { margin: 3px 0; font: 600 19px/1.4 var(--serif); }
