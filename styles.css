@@ -540,6 +540,18 @@ input:-webkit-autofill:focus {
 .markdown-body table { display: block; max-width: 100%; overflow-x: auto; border-collapse: collapse; font-family: var(--ui); font-size: 14px; }
 .markdown-body th, .markdown-body td { border: 1px solid var(--rule); padding: 7px 10px; text-align: left; }
 .markdown-body a { overflow-wrap: anywhere; }
+.markdown-body details { margin: 1.6em 0; border-top: 1px solid var(--rule); border-bottom: 1px solid var(--rule); padding: 10px 0; }
+.markdown-body summary { min-height: 44px; padding: 8px 2px; color: var(--link); cursor: pointer; font-family: var(--ui); font-weight: 700; }
+.markdown-body figure { margin: 2rem 0; }
+.markdown-body figure img { margin-bottom: .7rem; }
+.markdown-body figcaption { color: var(--muted); font-family: var(--ui); font-size: 13px; text-align: center; }
+.markdown-body mark { padding: .08em .2em; background: var(--selection); color: var(--ink); }
+.markdown-body kbd,
+.markdown-body samp { border: 1px solid var(--rule); padding: .08em .3em; background: var(--surface); font: .82em/1.4 ui-monospace, SFMono-Regular, Consolas, monospace; }
+.markdown-body [data-math-style="inline"] { white-space: nowrap; }
+.markdown-body .math-display { display: block; max-width: 100%; margin: 1.8em 0; overflow-x: auto; overflow-y: hidden; padding: 8px 2px; text-align: center; }
+.markdown-body .math-display .katex-display { margin: 0; }
+.markdown-body .math-error { color: var(--signal); font-family: ui-monospace, SFMono-Regular, Consolas, monospace; white-space: pre-wrap; }
 .mermaid { max-width: 100%; margin: 2rem 0; overflow-x: auto; text-align: center; }
 .mermaid-loading {
   border: 1px solid var(--rule);

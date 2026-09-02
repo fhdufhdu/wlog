@@ -14,10 +14,12 @@ pub fn render(markdown: &str) -> String {
     options.extension.table = true;
     options.extension.tasklist = true;
     options.extension.footnotes = true;
+    options.extension.math_dollars = true;
+    options.extension.math_latex = true;
     options.extension.header_id_prefix = Some("section-".into());
     options.extension.header_id_prefix_in_href = true;
     options.render.hardbreaks = true;
-    options.render.r#unsafe = false;
+    options.render.r#unsafe = true;
     let highlighter = SyntectAdapter::new(Some("base16-ocean.dark"));
     let plugins = Plugins {
         render: RenderPlugins {
@@ -28,10 +30,25 @@ pub fn render(markdown: &str) -> String {
     let html = markdown_to_html_with_plugins(markdown, &options, &plugins);
     let mut cleaner = Builder::default();
     cleaner
+        .add_tags(&[
+            "details",
+            "summary",
+            "figure",
+            "figcaption",
+            "mark",
+            "kbd",
+            "samp",
+            "sub",
+            "sup",
+        ])
+        .add_generic_attributes(&["class", "id", "title"])
         .add_tag_attributes("span", &["class", "style"])
         .add_tag_attributes("pre", &["class", "style"])
-        .add_tag_attributes("code", &["class"])
-        .add_tag_attributes("img", &["loading"])
+        .add_tag_attributes("span", &["data-math-style"])
+        .add_tag_attributes("pre", &["data-math-style"])
+        .add_tag_attributes("code", &["class", "data-math-style"])
+        .add_tag_attributes("details", &["open"])
+        .add_tag_attributes("img", &["loading", "width", "height"])
         .add_tag_attributes("input", &["type", "checked", "disabled"]);
     for heading in ["h1", "h2", "h3", "h4", "h5", "h6"] {
         cleaner.add_tag_attributes(heading, &["id"]);
@@ -41,7 +58,10 @@ pub fn render(markdown: &str) -> String {
 
 pub fn excerpt(markdown: &str, limit: usize) -> String {
     let arena = Arena::new();
-    let root = parse_document(&arena, markdown, &Options::default());
+    let mut options = Options::default();
+    options.extension.math_dollars = true;
+    options.extension.math_latex = true;
+    let root = parse_document(&arena, markdown, &options);
     let mut text = String::new();
     for node in root.descendants() {
         match &node.data().value {
@@ -50,6 +70,10 @@ pub fn excerpt(markdown: &str, limit: usize) -> String {
                 text.push(' ');
             }
             NodeValue::Code(value) => {
+                text.push_str(&value.literal);
+                text.push(' ');
+            }
+            NodeValue::Math(value) => {
                 text.push_str(&value.literal);
                 text.push(' ');
             }
@@ -97,8 +121,8 @@ mod tests {
 
     #[test]
     fn creates_plain_text_excerpt_from_markdown() {
-        let excerpt = super::excerpt("# 제목\n\n**강조한 본문**과 `코드`입니다.", 80);
-        assert_eq!(excerpt, "제목 강조한 본문 과 코드 입니다.");
+        let excerpt = super::excerpt("# 제목\n\n**강조한 본문**과 `코드`, $E=mc^2$입니다.", 80);
+        assert_eq!(excerpt, "제목 강조한 본문 과 코드 , E=mc^2 입니다.");
     }
 
     #[test]
@@ -113,6 +137,28 @@ mod tests {
         let html = super::render("첫째 줄\n둘째 줄");
         assert!(html.contains("첫째 줄<br"));
         assert!(html.contains("둘째 줄"));
+    }
+
+    #[test]
+    fn preserves_math_nodes_for_katex() {
+        let html = super::render("인라인 $E = mc^2$\n\n$$\\int_0^1 x^2 dx$$");
+        assert!(html.contains("data-math-style=\"inline\""));
+        assert!(html.contains("data-math-style=\"display\""));
+        assert!(html.contains("E = mc^2"));
+    }
+
+    #[test]
+    fn allows_safe_html_and_removes_executable_html() {
+        let html = super::render(
+            "<details open onclick=\"alert(1)\"><summary>설명</summary><mark>본문</mark></details><a href=\"javascript:alert(2)\">위험한 링크</a><img src=\"/uploads/safe.png\" onerror=\"alert(3)\"><script>alert(4)</script>",
+        );
+        assert!(html.contains("<details open=\"\">"));
+        assert!(html.contains("<summary>설명</summary>"));
+        assert!(html.contains("<mark>본문</mark>"));
+        assert!(!html.contains("onclick"));
+        assert!(!html.contains("javascript:"));
+        assert!(!html.contains("onerror"));
+        assert!(!html.contains("<script"));
     }
 
     #[test]

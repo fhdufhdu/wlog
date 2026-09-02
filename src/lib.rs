@@ -88,6 +88,7 @@ pub fn build_router(state: AppState) -> Router {
         .route_service("/admin.js", ServeFile::new("admin.js"))
         .route_service("/theme.js", ServeFile::new("theme.js"))
         .route_service("/mermaid.js", ServeFile::new("mermaid.js"))
+        .route_service("/math.js", ServeFile::new("math.js"))
         .nest_service("/assets", ServeDir::new("assets"))
         .nest_service(
             "/uploads",

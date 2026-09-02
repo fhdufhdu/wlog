@@ -226,6 +226,11 @@ document.querySelectorAll("[data-markdown]").forEach((button) => {
     if (action === "mermaid") {
       wrapSelection("```mermaid\n", "\n```", "flowchart LR\n  A[시작] --> B[끝]");
     }
+    if (action === "math") {
+      const selected = editor.value.slice(editor.selectionStart, editor.selectionEnd) || "E = mc^2";
+      if (selected.includes("\n")) wrapSelection("$$\n", "\n$$", "E = mc^2");
+      else wrapSelection("$", "$", "E = mc^2");
+    }
   });
 });
 

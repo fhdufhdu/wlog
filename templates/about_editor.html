@@ -35,6 +35,7 @@
               <button type="button" data-markdown="quote">인용</button>
               <button type="button" data-markdown="link">링크</button>
               <button type="button" data-markdown="code">코드</button>
+              <button type="button" data-markdown="math">수식</button>
               <button type="button" data-markdown="mermaid">Mermaid</button>
             </div>
             <label class="upload-control">사진<input id="image-upload" type="file" accept="image/jpeg,image/png,image/gif,image/webp" multiple></label>
@@ -67,4 +68,4 @@
 </main>
 {% endblock %}
 
-{% block admin_scripts %}<script type="module" src="/mermaid.js"></script><script src="/admin.js" defer></script>{% endblock %}
+{% block admin_scripts %}<script type="module" src="/mermaid.js"></script><script type="module" src="/math.js"></script><script src="/admin.js" defer></script>{% endblock %}
