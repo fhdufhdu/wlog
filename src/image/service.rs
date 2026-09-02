@@ -7,6 +7,21 @@ use crate::{error::AppError, markdown};
 
 use super::repository::ImageRepository;
 
+pub fn sanitize_svg(svg: &[u8]) -> Result<Vec<u8>, AppError> {
+    let mut input = svg;
+    let mut sanitized = Vec::with_capacity(svg.len());
+    svg_hush::Filter::new()
+        .filter(&mut input, &mut sanitized)
+        .map_err(|_| AppError::Validation("올바르고 안전한 SVG 파일인지 확인해주세요.".into()))?;
+
+    if sanitized.is_empty() {
+        return Err(AppError::Validation(
+            "내용이 없는 SVG 파일은 업로드할 수 없습니다.".into(),
+        ));
+    }
+    Ok(sanitized)
+}
+
 #[derive(Clone)]
 pub struct ImageService {
     repository: ImageRepository,
@@ -77,5 +92,32 @@ impl ImageService {
             }
         }
         Ok(removed)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::sanitize_svg;
+
+    #[test]
+    fn sanitizer_removes_active_svg_content() {
+        let svg = br#"<svg xmlns="http://www.w3.org/2000/svg" onload="alert(1)">
+            <script>alert(1)</script>
+            <a href="https://example.com/evil"><rect width="10" height="10" /></a>
+        </svg>"#;
+
+        let sanitized = sanitize_svg(svg).expect("valid SVG should be sanitized");
+        let sanitized = String::from_utf8(sanitized).expect("sanitized SVG should be UTF-8");
+
+        assert!(sanitized.contains("<svg"));
+        assert!(sanitized.contains("rect"));
+        assert!(!sanitized.contains("script"));
+        assert!(!sanitized.contains("onload"));
+        assert!(!sanitized.contains("example.com"));
+    }
+
+    #[test]
+    fn sanitizer_rejects_malformed_svg() {
+        assert!(sanitize_svg(b"<svg><path></svg>").is_err());
     }
 }

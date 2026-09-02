@@ -315,7 +315,7 @@ async function handleImageFiles(fileList) {
   if (!editor || !csrfToken) return;
   const files = [...fileList].filter((file) => file.type.startsWith("image/"));
   if (!files.length) {
-    if (uploadStatus) uploadStatus.textContent = "JPEG, PNG, GIF, WebP 사진 파일만 추가할 수 있습니다.";
+    if (uploadStatus) uploadStatus.textContent = "JPEG, PNG, GIF, WebP, SVG 파일만 추가할 수 있습니다.";
     return;
   }
 

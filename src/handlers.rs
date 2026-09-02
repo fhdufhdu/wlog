@@ -17,6 +17,7 @@ use crate::{
     about::dto::AboutForm,
     auth::Session,
     error::AppError,
+    image::service::sanitize_svg,
     markdown,
     post::{
         dto::{IndexQuery, PostForm},
@@ -580,34 +581,48 @@ pub async fn upload_image(
             }
             Some("image") => {
                 let original_name = field.file_name().unwrap_or("image").to_owned();
+                let declared_content_type = field.content_type().map(str::to_owned);
                 let bytes = field
                     .bytes()
                     .await
                     .map_err(|_| AppError::Validation("이미지를 읽지 못했습니다.".into()))?;
-                image = Some((original_name, bytes));
+                image = Some((original_name, declared_content_type, bytes));
             }
             _ => {}
         }
     }
     verify_csrf(&session.csrf, csrf.as_deref().unwrap_or_default())?;
-    let (original_name, image) =
+    let (original_name, declared_content_type, image) =
         image.ok_or_else(|| AppError::Validation("이미지를 선택해주세요.".into()))?;
     if image.is_empty() || image.len() > state.config.max_upload_bytes {
         return Err(AppError::Validation("이미지는 5MB 이하여야 합니다.".into()));
     }
-    let kind = infer::get(&image)
-        .ok_or_else(|| AppError::Validation("이미지 파일을 확인할 수 없습니다.".into()))?;
-    let mime_type = kind.mime_type();
-    let extension = match mime_type {
-        "image/jpeg" => "jpg",
-        "image/png" => "png",
-        "image/gif" => "gif",
-        "image/webp" => "webp",
-        _ => {
-            return Err(AppError::Validation(
-                "JPEG, PNG, GIF, WebP만 업로드할 수 있습니다.".into(),
-            ));
+    let is_svg = declared_content_type.as_deref() == Some("image/svg+xml")
+        || original_name
+            .rsplit_once('.')
+            .is_some_and(|(_, extension)| extension.eq_ignore_ascii_case("svg"));
+    let (image, mime_type, extension) = if is_svg {
+        let image = sanitize_svg(&image)?;
+        if image.len() > state.config.max_upload_bytes {
+            return Err(AppError::Validation("이미지는 5MB 이하여야 합니다.".into()));
         }
+        (image, "image/svg+xml", "svg")
+    } else {
+        let kind = infer::get(&image)
+            .ok_or_else(|| AppError::Validation("이미지 파일을 확인할 수 없습니다.".into()))?;
+        let mime_type = kind.mime_type();
+        let extension = match mime_type {
+            "image/jpeg" => "jpg",
+            "image/png" => "png",
+            "image/gif" => "gif",
+            "image/webp" => "webp",
+            _ => {
+                return Err(AppError::Validation(
+                    "JPEG, PNG, GIF, WebP, SVG만 업로드할 수 있습니다.".into(),
+                ));
+            }
+        };
+        (image.to_vec(), mime_type, extension)
     };
     let id = Uuid::new_v4();
     let filename = format!("{id}.{extension}");

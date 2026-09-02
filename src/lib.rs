@@ -28,6 +28,16 @@ pub fn build_router(state: AppState) -> Router {
     let upload_limit = state.config.max_upload_bytes + 65_536;
     let uploads = state.config.upload_dir.clone();
     let request_id = HeaderName::from_static("x-request-id");
+    let uploaded_files = Router::new()
+        .fallback_service(ServeDir::new(uploads).append_index_html_on_directories(false))
+        .layer(
+            tower_http::set_header::SetResponseHeaderLayer::if_not_present(
+                header::CONTENT_SECURITY_POLICY,
+                HeaderValue::from_static(
+                    "sandbox; default-src 'none'; img-src 'self' data:; style-src 'unsafe-inline'",
+                ),
+            ),
+        );
     let admin = Router::new()
         .route("/admin/logout", post(handlers::logout))
         .route("/admin", get(handlers::admin_index))
@@ -90,10 +100,7 @@ pub fn build_router(state: AppState) -> Router {
         .route_service("/mermaid.js", ServeFile::new("mermaid.js"))
         .route_service("/math.js", ServeFile::new("math.js"))
         .nest_service("/assets", ServeDir::new("assets"))
-        .nest_service(
-            "/uploads",
-            ServeDir::new(uploads).append_index_html_on_directories(false),
-        )
+        .nest("/uploads", uploaded_files)
         .layer(PropagateRequestIdLayer::new(request_id.clone()))
         .layer(CompressionLayer::new())
         .layer(TraceLayer::new_for_http())
