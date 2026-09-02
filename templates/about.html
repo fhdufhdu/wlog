@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% block content %}
+<main id="main" class="article-shell about-shell" tabindex="-1">
+  <article class="article-view about-view">
+    <header class="article-header">
+      <h1>{{ title }}</h1>
+    </header>
+    <div class="prose markdown-body">{{ body_html|safe }}</div>
+  </article>
+</main>
+{% endblock %}
+{% block scripts %}<script type="module" src="/mermaid.js"></script>{% endblock %}

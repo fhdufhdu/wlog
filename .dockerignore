@@ -1,0 +1,12 @@
+*
+!docker/
+!docker/dockerfiles/
+!docker/dockerfiles/Dockerfile
+!target/
+!target/release/
+!target/release/wlog
+!styles.css
+!admin.js
+!mermaid.js
+!assets/
+!assets/**

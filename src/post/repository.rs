@@ -1,0 +1,205 @@
+use super::model::{Post, TempPost};
+use chrono::Utc;
+use sqlx::PgPool;
+use uuid::Uuid;
+
+#[derive(Clone)]
+pub struct PostRepository {
+    pool: PgPool,
+}
+
+impl PostRepository {
+    pub fn new(pool: PgPool) -> Self {
+        Self { pool }
+    }
+
+    pub async fn list_public(&self, topic_id: Option<Uuid>) -> Result<Vec<Post>, sqlx::Error> {
+        sqlx::query_as::<_, Post>(
+            "SELECT p.id, p.title, p.slug, p.description, p.content_markdown,
+                    p.topic_id, t.name AS topic_name, p.published_at, p.created_at, p.updated_at
+             FROM posts p JOIN topics t ON t.id = p.topic_id
+             WHERE ($1::UUID IS NULL OR p.topic_id = $1)
+             ORDER BY p.published_at DESC LIMIT 100",
+        )
+        .bind(topic_id)
+        .fetch_all(&self.pool)
+        .await
+    }
+
+    pub async fn list_all(&self) -> Result<Vec<Post>, sqlx::Error> {
+        sqlx::query_as::<_, Post>(
+            "SELECT p.id, p.title, p.slug, p.description, p.content_markdown,
+                    p.topic_id, t.name AS topic_name, p.published_at, p.created_at, p.updated_at
+             FROM posts p JOIN topics t ON t.id = p.topic_id ORDER BY p.published_at DESC",
+        )
+        .fetch_all(&self.pool)
+        .await
+    }
+
+    pub async fn list_unlinked_temp(&self) -> Result<Vec<TempPost>, sqlx::Error> {
+        sqlx::query_as::<_, TempPost>(
+            "SELECT tp.id, tp.post_id, tp.title, tp.slug, tp.description, tp.description_manual,
+                    tp.content_markdown, tp.topic_id, t.name AS topic_name, tp.created_at, tp.updated_at
+             FROM temp_posts tp LEFT JOIN topics t ON t.id = tp.topic_id
+             WHERE tp.post_id IS NULL ORDER BY tp.updated_at DESC",
+        )
+        .fetch_all(&self.pool)
+        .await
+    }
+
+    pub async fn find_public_slug(&self, slug: &str) -> Result<Option<Post>, sqlx::Error> {
+        sqlx::query_as::<_, Post>(
+            "SELECT p.id, p.title, p.slug, p.description, p.content_markdown,
+                    p.topic_id, t.name AS topic_name, p.published_at, p.created_at, p.updated_at
+             FROM posts p JOIN topics t ON t.id = p.topic_id WHERE p.slug = $1",
+        )
+        .bind(slug)
+        .fetch_optional(&self.pool)
+        .await
+    }
+
+    pub async fn find_id(&self, id: Uuid) -> Result<Option<Post>, sqlx::Error> {
+        sqlx::query_as::<_, Post>(
+            "SELECT p.id, p.title, p.slug, p.description, p.content_markdown,
+                    p.topic_id, t.name AS topic_name, p.published_at, p.created_at, p.updated_at
+             FROM posts p JOIN topics t ON t.id = p.topic_id WHERE p.id = $1",
+        )
+        .bind(id)
+        .fetch_optional(&self.pool)
+        .await
+    }
+
+    pub async fn find_temp_id(&self, id: Uuid) -> Result<Option<TempPost>, sqlx::Error> {
+        sqlx::query_as::<_, TempPost>(
+            "SELECT tp.id, tp.post_id, tp.title, tp.slug, tp.description, tp.description_manual,
+                    tp.content_markdown, tp.topic_id, t.name AS topic_name, tp.created_at, tp.updated_at
+             FROM temp_posts tp LEFT JOIN topics t ON t.id = tp.topic_id WHERE tp.id = $1",
+        )
+        .bind(id)
+        .fetch_optional(&self.pool)
+        .await
+    }
+
+    pub async fn create_empty_temp(&self) -> Result<TempPost, sqlx::Error> {
+        sqlx::query_as::<_, TempPost>(
+            "INSERT INTO temp_posts (id) VALUES ($1)
+             RETURNING id, post_id, title, slug, description, description_manual,
+                       content_markdown, topic_id, NULL::VARCHAR AS topic_name, created_at, updated_at",
+        )
+        .bind(Uuid::new_v4())
+        .fetch_one(&self.pool)
+        .await
+    }
+
+    pub async fn temp_for_post(&self, post_id: Uuid) -> Result<Option<TempPost>, sqlx::Error> {
+        sqlx::query_as::<_, TempPost>(
+            "WITH upserted AS (
+                INSERT INTO temp_posts (id, post_id, title, slug, description, description_manual, content_markdown, topic_id)
+                SELECT $1, id, title, slug, description, TRUE, content_markdown, topic_id FROM posts WHERE id = $2
+                ON CONFLICT (post_id) DO UPDATE SET post_id = EXCLUDED.post_id
+                RETURNING id, post_id, title, slug, description, description_manual, content_markdown, topic_id, created_at, updated_at
+             )
+             SELECT u.id, u.post_id, u.title, u.slug, u.description, u.description_manual,
+                    u.content_markdown, u.topic_id, t.name AS topic_name, u.created_at, u.updated_at
+             FROM upserted u LEFT JOIN topics t ON t.id = u.topic_id",
+        )
+        .bind(Uuid::new_v4())
+        .bind(post_id)
+        .fetch_optional(&self.pool)
+        .await
+    }
+
+    pub async fn update_temp(&self, temp: &TempPost) -> Result<TempPost, sqlx::Error> {
+        sqlx::query_as::<_, TempPost>(
+            "WITH updated AS (
+                UPDATE temp_posts SET title=$2, slug=$3, description=$4, description_manual=$5,
+                    content_markdown=$6, topic_id=$7, updated_at=$8 WHERE id=$1
+                RETURNING id, post_id, title, slug, description, description_manual, content_markdown, topic_id, created_at, updated_at
+             )
+             SELECT u.id, u.post_id, u.title, u.slug, u.description, u.description_manual,
+                    u.content_markdown, u.topic_id, t.name AS topic_name, u.created_at, u.updated_at
+             FROM updated u LEFT JOIN topics t ON t.id = u.topic_id",
+        )
+        .bind(temp.id)
+        .bind(&temp.title)
+        .bind(&temp.slug)
+        .bind(&temp.description)
+        .bind(temp.description_manual)
+        .bind(&temp.content_markdown)
+        .bind(temp.topic_id)
+        .bind(temp.updated_at)
+        .fetch_one(&self.pool)
+        .await
+    }
+
+    pub async fn publish_temp(&self, temp: &TempPost) -> Result<Post, sqlx::Error> {
+        let mut transaction = self.pool.begin().await?;
+        let now = Utc::now();
+        let post = if let Some(post_id) = temp.post_id {
+            sqlx::query_as::<_, Post>(
+                "WITH updated AS (
+                    UPDATE posts SET title=$2, slug=$3, description=$4, content_markdown=$5,
+                        topic_id=$6, updated_at=$7 WHERE id=$1
+                    RETURNING id, title, slug, description, content_markdown, topic_id, published_at, created_at, updated_at
+                 )
+                 SELECT u.id, u.title, u.slug, u.description, u.content_markdown,
+                        u.topic_id, t.name AS topic_name, u.published_at, u.created_at, u.updated_at
+                 FROM updated u JOIN topics t ON t.id = u.topic_id",
+            )
+            .bind(post_id)
+            .bind(&temp.title)
+            .bind(&temp.slug)
+            .bind(&temp.description)
+            .bind(&temp.content_markdown)
+            .bind(temp.topic_id)
+            .bind(now)
+            .fetch_one(&mut *transaction)
+            .await?
+        } else {
+            let post_id = Uuid::new_v4();
+            sqlx::query_as::<_, Post>(
+                "WITH inserted AS (
+                    INSERT INTO posts (id, title, slug, description, content_markdown, topic_id, published_at, created_at, updated_at)
+                    VALUES ($1,$2,$3,$4,$5,$6,$7,$7,$7)
+                    RETURNING id, title, slug, description, content_markdown, topic_id, published_at, created_at, updated_at
+                 )
+                 SELECT i.id, i.title, i.slug, i.description, i.content_markdown,
+                        i.topic_id, t.name AS topic_name, i.published_at, i.created_at, i.updated_at
+                 FROM inserted i JOIN topics t ON t.id = i.topic_id",
+            )
+            .bind(post_id)
+            .bind(&temp.title)
+            .bind(&temp.slug)
+            .bind(&temp.description)
+            .bind(&temp.content_markdown)
+            .bind(temp.topic_id)
+            .bind(now)
+            .fetch_one(&mut *transaction)
+            .await?
+        };
+        sqlx::query("DELETE FROM temp_posts WHERE id = $1")
+            .bind(temp.id)
+            .execute(&mut *transaction)
+            .await?;
+        transaction.commit().await?;
+        Ok(post)
+    }
+
+    pub async fn delete(&self, id: Uuid) -> Result<bool, sqlx::Error> {
+        Ok(sqlx::query("DELETE FROM posts WHERE id = $1")
+            .bind(id)
+            .execute(&self.pool)
+            .await?
+            .rows_affected()
+            == 1)
+    }
+
+    pub async fn delete_temp(&self, id: Uuid) -> Result<bool, sqlx::Error> {
+        Ok(sqlx::query("DELETE FROM temp_posts WHERE id = $1")
+            .bind(id)
+            .execute(&self.pool)
+            .await?
+            .rows_affected()
+            == 1)
+    }
+}

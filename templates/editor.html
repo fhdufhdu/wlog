@@ -1,0 +1,99 @@
+{% extends "admin_base.html" %}
+
+{% block body_class %}editor-body{% endblock %}
+
+{% block admin_nav %}
+<a href="/admin">글 목록</a>
+{% if post.has_public_post %}<a href="/posts/{{ post.slug }}">공개 글 보기</a>{% endif %}
+{% endblock %}
+
+{% block admin_content %}
+<main class="editor-shell">
+  <form id="editor-form" class="editor-form" method="post" action="{{ action }}" data-autosave-url="/admin/temp-posts/{{ post.id }}/autosave">
+    <input type="hidden" name="csrf_token" id="csrf-token" value="{{ csrf }}">
+    <input type="hidden" name="description_manual" id="description-manual" value="{% if post.description_manual %}true{% else %}false{% endif %}">
+    <div class="editor-mobile-tabs" role="tablist" aria-label="편집 화면">
+      <button id="write-tab" class="editor-tab is-current" type="button" role="tab" aria-selected="true" aria-controls="write-panel">작성</button>
+      <button id="preview-tab" class="editor-tab" type="button" role="tab" aria-selected="false" aria-controls="preview-panel">미리보기</button>
+    </div>
+
+    <div class="editor-workspace">
+      <section id="write-panel" class="editor-pane editor-write-pane" role="tabpanel" aria-labelledby="write-tab">
+        <div class="editor-pane-inner">
+          <label class="sr-only" for="title">제목</label>
+          <input id="title" class="editor-title-input" name="title" value="{{ post.title }}" maxlength="120" placeholder="제목을 입력하세요" required>
+          <div class="editor-title-rule" aria-hidden="true"></div>
+
+          <div class="editor-quick-meta">
+            <label for="topic_id">주제</label>
+            <div class="editor-topic-control">
+              <select id="topic_id" name="topic_id" required>
+                <option value="">주제를 선택하세요</option>
+                {% for topic in topics %}<option value="{{ topic.id }}"{% if topic.id == post.topic_id %} selected{% endif %}>{{ topic.name }}</option>{% endfor %}
+              </select>
+              <a href="/admin/topics">관리</a>
+            </div>
+          </div>
+
+          <details class="editor-settings">
+            <summary>글 설정</summary>
+            <div class="editor-settings-grid">
+              <div class="field">
+                <label for="slug">글 주소</label>
+                <input id="slug" name="slug" value="{{ post.slug }}" maxlength="160" placeholder="rust-axum-start" required>
+              </div>
+              <div class="field editor-seo-field">
+                <label for="description">SEO 설명</label>
+                <textarea id="description" name="description" rows="3" maxlength="200" placeholder="본문 앞 80자를 자동으로 채웁니다.">{{ post.description }}</textarea>
+                <small><span id="description-count">{{ post.description.chars().count() }}</span>/200자 · 자동 생성 후 직접 수정할 수 있습니다.</small>
+              </div>
+            </div>
+          </details>
+
+          <div class="markdown-toolbar" role="toolbar" aria-label="Markdown 서식">
+            <div class="markdown-toolbar-group" aria-label="제목">
+              <button type="button" data-markdown="h1" aria-label="제목 1">H1</button>
+              <button type="button" data-markdown="h2" aria-label="제목 2">H2</button>
+              <button type="button" data-markdown="h3" aria-label="제목 3">H3</button>
+            </div>
+            <div class="markdown-toolbar-group" aria-label="본문 서식">
+              <button type="button" data-markdown="bold"><strong>굵게</strong></button>
+              <button type="button" data-markdown="italic"><em>기울임</em></button>
+              <button type="button" data-markdown="quote">인용</button>
+              <button type="button" data-markdown="link">링크</button>
+              <button type="button" data-markdown="code">코드</button>
+              <button type="button" data-markdown="mermaid">Mermaid</button>
+            </div>
+            <label class="upload-control">사진<input id="image-upload" type="file" accept="image/jpeg,image/png,image/gif,image/webp" multiple></label>
+          </div>
+
+          <label class="sr-only" for="content_markdown">본문 · Markdown</label>
+          <textarea id="content_markdown" name="content_markdown" class="markdown-editor" rows="24" placeholder="Markdown으로 글을 작성하세요." required>{{ post.content_markdown }}</textarea>
+          <p id="upload-status" class="form-note" role="status"></p>
+        </div>
+      </section>
+
+      <section id="preview-panel" class="editor-pane editor-preview-pane" role="tabpanel" aria-labelledby="preview-tab" aria-live="polite">
+        <article class="editor-preview-document">
+          <h1 id="preview-title" class="editor-preview-title">{% if post.title.is_empty() %}제목을 입력하세요{% else %}{{ post.title }}{% endif %}</h1>
+          <p id="preview-description" class="editor-preview-description">{{ post.description }}</p>
+          <div id="preview-body" class="markdown-body prose">
+            <p class="preview-empty">본문을 입력하면 여기에 미리보기가 표시됩니다.</p>
+          </div>
+        </article>
+      </section>
+    </div>
+
+    <footer class="editor-actions">
+      <a class="editor-exit" href="/admin">나가기</a>
+      <p id="save-status" class="editor-save-status" role="status">모든 변경사항이 저장됨</p>
+      <div class="editor-action-buttons">
+        <button class="button-secondary" type="submit" formaction="/admin/temp-posts/{{ post.id }}/save" formnovalidate>임시저장</button>
+        <button class="button-primary" type="submit">{% if post.has_public_post %}변경사항 발행{% else %}발행{% endif %}</button>
+      </div>
+    </footer>
+  </form>
+</main>
+{% endblock %}
+
+{% block admin_scripts %}<script type="module" src="/mermaid.js"></script><script src="/admin.js" defer></script>{% endblock %}

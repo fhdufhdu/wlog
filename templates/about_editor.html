@@ -1,0 +1,70 @@
+{% extends "admin_base.html" %}
+
+{% block body_class %}editor-body{% endblock %}
+
+{% block admin_nav %}
+<a href="/admin">글 목록</a>
+<a href="/about">소개 보기</a>
+{% endblock %}
+
+{% block admin_content %}
+<main class="editor-shell">
+  <form id="editor-form" class="editor-form" method="post" action="/admin/about">
+    <input type="hidden" name="csrf_token" id="csrf-token" value="{{ csrf }}">
+    <div class="editor-mobile-tabs" role="tablist" aria-label="편집 화면">
+      <button id="write-tab" class="editor-tab is-current" type="button" role="tab" aria-selected="true" aria-controls="write-panel">작성</button>
+      <button id="preview-tab" class="editor-tab" type="button" role="tab" aria-selected="false" aria-controls="preview-panel">미리보기</button>
+    </div>
+
+    <div class="editor-workspace">
+      <section id="write-panel" class="editor-pane editor-write-pane" role="tabpanel" aria-labelledby="write-tab">
+        <div class="editor-pane-inner">
+          <label class="sr-only" for="title">소개 제목</label>
+          <input id="title" class="editor-title-input" name="title" value="{{ title }}" maxlength="120" placeholder="소개" required>
+          <div class="editor-title-rule" aria-hidden="true"></div>
+
+          <div class="markdown-toolbar" role="toolbar" aria-label="Markdown 서식">
+            <div class="markdown-toolbar-group" aria-label="제목">
+              <button type="button" data-markdown="h1" aria-label="제목 1">H1</button>
+              <button type="button" data-markdown="h2" aria-label="제목 2">H2</button>
+              <button type="button" data-markdown="h3" aria-label="제목 3">H3</button>
+            </div>
+            <div class="markdown-toolbar-group" aria-label="본문 서식">
+              <button type="button" data-markdown="bold"><strong>굵게</strong></button>
+              <button type="button" data-markdown="italic"><em>기울임</em></button>
+              <button type="button" data-markdown="quote">인용</button>
+              <button type="button" data-markdown="link">링크</button>
+              <button type="button" data-markdown="code">코드</button>
+              <button type="button" data-markdown="mermaid">Mermaid</button>
+            </div>
+            <label class="upload-control">사진<input id="image-upload" type="file" accept="image/jpeg,image/png,image/gif,image/webp" multiple></label>
+          </div>
+
+          <label class="sr-only" for="content_markdown">소개 본문 · Markdown</label>
+          <textarea id="content_markdown" name="content_markdown" class="markdown-editor" rows="24" placeholder="Markdown으로 소개를 작성하세요.">{{ content_markdown }}</textarea>
+          <p id="upload-status" class="form-note" role="status"></p>
+        </div>
+      </section>
+
+      <section id="preview-panel" class="editor-pane editor-preview-pane" role="tabpanel" aria-labelledby="preview-tab" aria-live="polite">
+        <article class="editor-preview-document">
+          <h1 id="preview-title" class="editor-preview-title">{{ title }}</h1>
+          <div id="preview-body" class="markdown-body prose">
+            <p class="preview-empty">본문을 입력하면 여기에 미리보기가 표시됩니다.</p>
+          </div>
+        </article>
+      </section>
+    </div>
+
+    <footer class="editor-actions">
+      <a class="editor-exit" href="/admin">나가기</a>
+      <p id="save-status" class="editor-save-status" role="status">저장된 소개입니다</p>
+      <div class="editor-action-buttons">
+        <button class="button-primary" type="submit">저장</button>
+      </div>
+    </footer>
+  </form>
+</main>
+{% endblock %}
+
+{% block admin_scripts %}<script type="module" src="/mermaid.js"></script><script src="/admin.js" defer></script>{% endblock %}

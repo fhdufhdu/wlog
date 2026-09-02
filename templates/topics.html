@@ -1,0 +1,56 @@
+{% extends "admin_base.html" %}
+
+{% block admin_nav %}
+<a href="/admin">글 관리</a>
+<a href="/admin/about">소개 작성</a>
+<a href="/admin/posts/new" class="button-primary">새 글</a>
+<form method="post" action="/admin/logout">
+  <input type="hidden" name="csrf_token" value="{{ csrf }}">
+  <button type="submit">로그아웃</button>
+</form>
+{% endblock %}
+
+{% block admin_content %}
+<main class="admin-main topic-admin">
+  <header class="page-heading"><h1>주제 관리</h1><p>{{ topics.len() }}개</p></header>
+
+  <section class="topic-create" aria-labelledby="topic-create-title">
+    <div>
+      <h2 id="topic-create-title">새 주제</h2>
+      <p>글을 묶어 보여줄 이름을 입력하세요.</p>
+    </div>
+    <form method="post" action="/admin/topics">
+      <input type="hidden" name="csrf_token" value="{{ csrf }}">
+      <label class="sr-only" for="new-topic-name">주제 이름</label>
+      <input id="new-topic-name" name="name" maxlength="40" placeholder="예: Rust" required>
+      <button class="button-primary" type="submit">추가</button>
+    </form>
+  </section>
+
+  {% if topics.is_empty() %}
+  <p class="empty-state">아직 주제가 없습니다. 첫 주제를 추가해주세요.</p>
+  {% else %}
+  <div class="topic-list">
+    {% for topic in topics %}
+    <article class="topic-row">
+      <form class="topic-rename-form" method="post" action="/admin/topics/{{ topic.id }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf }}">
+        <label class="sr-only" for="topic-{{ topic.id }}">주제 이름</label>
+        <input id="topic-{{ topic.id }}" name="name" value="{{ topic.name }}" maxlength="40" required>
+        <p>공개 글 {{ topic.post_count }}편{% if topic.temp_count > 0 %} · 임시글 {{ topic.temp_count }}편{% endif %}</p>
+        <button class="button-secondary" type="submit">이름 저장</button>
+      </form>
+      {% if topic.in_use %}
+      <span class="topic-in-use">사용 중</span>
+      {% else %}
+      <form method="post" action="/admin/topics/{{ topic.id }}/delete" onsubmit="return confirm('이 주제를 제거할까요?')">
+        <input type="hidden" name="csrf_token" value="{{ csrf }}">
+        <button class="danger-button" type="submit">제거</button>
+      </form>
+      {% endif %}
+    </article>
+    {% endfor %}
+  </div>
+  {% endif %}
+</main>
+{% endblock %}

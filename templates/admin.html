@@ -1,0 +1,36 @@
+{% extends "admin_base.html" %}
+
+{% block admin_nav %}
+<a href="/admin/topics">주제 관리</a>
+<a href="/admin/about">소개 작성</a>
+<a href="/admin/posts/new" class="button-primary">새 글</a>
+<form method="post" action="/admin/logout">
+  <input type="hidden" name="csrf_token" value="{{ csrf }}">
+  <button type="submit">로그아웃</button>
+</form>
+{% endblock %}
+
+{% block admin_content %}
+<main class="admin-main">
+  <header class="page-heading"><h1>글 관리</h1><p>{{ posts.len() }}편</p></header>
+  {% if posts.is_empty() %}
+  <p class="empty-state">아직 글이 없습니다. 첫 글을 작성해보세요.</p>
+  {% else %}
+  <div class="admin-posts">
+    {% for post in posts %}
+    <article>
+      <div>
+        <span class="status-mark">{{ post.status }}</span>
+        <h2><a href="{{ post.edit_url }}">{{ post.title }}</a></h2>
+        <p>{% if post.slug != "" %}/posts/{{ post.slug }} · {% endif %}{{ post.updated }}</p>
+      </div>
+      <form method="post" action="{{ post.delete_url }}" onsubmit="return confirm('이 글을 제거할까요? 이 작업은 되돌릴 수 없습니다.')">
+        <input type="hidden" name="csrf_token" value="{{ csrf }}">
+        <button class="danger-button" type="submit">제거</button>
+      </form>
+    </article>
+    {% endfor %}
+  </div>
+  {% endif %}
+</main>
+{% endblock %}

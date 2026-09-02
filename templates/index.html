@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="page-layout">
+  <aside class="topic-nav" aria-label="주제">
+    <strong>주제</strong>
+    <a{% if topic_id == "" %} class="is-current"{% endif %} href="/">전체</a>
+    {% for topic in topics %}<a{% if topic.id == topic_id %} class="is-current"{% endif %} href="/?topic={{ topic.id }}">{{ topic.name }}</a>{% endfor %}
+  </aside>
+  <main id="main" tabindex="-1">
+    <header class="index-heading"><h1>{% if topic_id == "" %}최근 글{% else %}{{ topic_name }}{% endif %}</h1><p>{{ posts.len() }}편</p></header>
+    {% if posts.is_empty() %}<p class="empty-state">아직 공개된 글이 없습니다.</p>{% else %}
+    <ol class="post-list server-post-list">
+      {% for post in posts %}<li class="post-item">
+        <a class="post-link" href="/posts/{{ post.slug }}">{{ post.title }}</a>
+        <div class="post-meta"><time>{{ post.date }}</time><span class="post-topic">{{ post.topic }}</span></div>
+        <p>{{ post.description }}</p>
+      </li>{% endfor %}
+    </ol>{% endif %}
+  </main>
+</div>
+{% endblock %}
