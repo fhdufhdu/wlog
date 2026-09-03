@@ -23,7 +23,20 @@ let previewController = null;
 let previewTimer = null;
 let previewVersion = 0;
 let isComposing = false;
+let lastPreviewMarkdown = null;
+let editorResizeFrame = null;
 const autosaveUrl = form?.dataset.autosaveUrl;
+const previewDelay = 120;
+
+function resizeEditor() {
+  if (!editor) return;
+  window.cancelAnimationFrame(editorResizeFrame);
+  editorResizeFrame = window.requestAnimationFrame(() => {
+    editor.dataset.autogrow = "true";
+    editor.style.height = "0px";
+    editor.style.height = `${editor.scrollHeight}px`;
+  });
+}
 
 function setSaveStatus(message, state = "") {
   if (!saveStatus) return;
@@ -68,10 +81,13 @@ function showPreviewMessage(message, className = "preview-empty") {
 async function requestPreview() {
   if (!previewBody || !editor || !csrfToken) return;
   window.clearTimeout(previewTimer);
+  const markdown = editor.value;
+  if (markdown === lastPreviewMarkdown) return;
   previewController?.abort();
   const requestVersion = ++previewVersion;
 
-  if (!editor.value.trim()) {
+  if (!markdown.trim()) {
+    lastPreviewMarkdown = markdown;
     previewBody.removeAttribute("aria-busy");
     showPreviewMessage("본문을 입력하면 여기에 미리보기가 표시됩니다.");
     return;
@@ -81,7 +97,7 @@ async function requestPreview() {
   previewBody.setAttribute("aria-busy", "true");
   const data = new URLSearchParams();
   data.set("csrf_token", csrfToken.value);
-  data.set("content_markdown", editor.value);
+  data.set("content_markdown", markdown);
 
   try {
     const response = await fetch("/admin/preview", {
@@ -94,22 +110,35 @@ async function requestPreview() {
     if (!response.ok) throw new Error(await response.text());
     const html = await response.text();
     if (requestVersion === previewVersion) {
+      lastPreviewMarkdown = markdown;
       previewBody.innerHTML = html;
-      window.dispatchEvent(new CustomEvent("wlog:markdown-rendered", {
-        detail: { root: previewBody },
-      }));
+      window.requestAnimationFrame(() => {
+        if (requestVersion !== previewVersion) return;
+        window.dispatchEvent(new CustomEvent("wlog:markdown-rendered", {
+          detail: { root: previewBody },
+        }));
+      });
     }
   } catch (error) {
     if (error.name !== "AbortError" && requestVersion === previewVersion) {
       showPreviewMessage(error.message || "미리보기를 불러오지 못했습니다.", "form-alert");
     }
   } finally {
-    if (requestVersion === previewVersion) previewBody.removeAttribute("aria-busy");
+    if (requestVersion === previewVersion) {
+      previewController = null;
+      previewBody.removeAttribute("aria-busy");
+    }
   }
 }
 
-function schedulePreview(delay = 320) {
+function schedulePreview(delay = previewDelay) {
   if (isComposing) return;
+  if (previewController) {
+    previewVersion += 1;
+    previewController.abort();
+    previewController = null;
+    previewBody?.removeAttribute("aria-busy");
+  }
   window.clearTimeout(previewTimer);
   previewTimer = window.setTimeout(requestPreview, delay);
 }
@@ -149,12 +178,16 @@ editor?.addEventListener("compositionend", () => {
   updatePreviewMeta();
   schedulePreview(0);
 });
-editor?.addEventListener("input", updateDescription);
+editor?.addEventListener("input", () => {
+  resizeEditor();
+  updateDescription();
+  schedulePreview();
+});
+window.addEventListener("resize", resizeEditor, { passive: true });
 
 form?.addEventListener("input", () => {
   markDirty();
   updatePreviewMeta();
-  schedulePreview();
 });
 
 writeTab?.addEventListener("click", () => selectEditorTab("write"));
@@ -370,5 +403,6 @@ writePane?.addEventListener("drop", async (event) => {
 });
 
 selectEditorTab("write");
+resizeEditor();
 updatePreviewMeta();
 requestPreview();

@@ -31,6 +31,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .with(tracing_subscriber::fmt::layer())
         .init();
 
+    wlog::markdown::warm_up();
     let config = Arc::new(Config::from_env()?);
     tokio::fs::create_dir_all(&config.upload_dir).await?;
     let pool = PgPoolOptions::new()

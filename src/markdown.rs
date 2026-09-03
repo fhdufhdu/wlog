@@ -6,7 +6,14 @@ use comrak::{
     options::{Plugins, RenderPlugins},
     parse_document,
 };
-use std::collections::HashSet;
+use std::{collections::HashSet, sync::LazyLock};
+
+static HIGHLIGHTER: LazyLock<SyntectAdapter> =
+    LazyLock::new(|| SyntectAdapter::new(Some("base16-ocean.dark")));
+
+pub fn warm_up() {
+    LazyLock::force(&HIGHLIGHTER);
+}
 
 pub fn render(markdown: &str) -> String {
     let mut options = Options::default();
@@ -20,10 +27,9 @@ pub fn render(markdown: &str) -> String {
     options.extension.header_id_prefix_in_href = true;
     options.render.hardbreaks = true;
     options.render.r#unsafe = true;
-    let highlighter = SyntectAdapter::new(Some("base16-ocean.dark"));
     let plugins = Plugins {
         render: RenderPlugins {
-            codefence_syntax_highlighter: Some(&highlighter),
+            codefence_syntax_highlighter: Some(&*HIGHLIGHTER),
             ..Default::default()
         },
     };

@@ -705,11 +705,11 @@ input:-webkit-autofill:focus {
   font: 14px/1.78 ui-monospace, SFMono-Regular, Consolas, monospace;
   resize: vertical;
 }
+.markdown-editor[data-autogrow="true"] { overflow-y: hidden; resize: none; }
 .markdown-editor:focus { border: 0; outline: 0; box-shadow: none; }
 .editor-preview-document { width: min(100%, 70ch); margin: 0 auto; padding: 46px clamp(28px, 4vw, 58px) 100px; }
 .editor-preview-title { margin: 0 0 18px; overflow-wrap: anywhere; font: 700 clamp(29px, 3vw, 40px)/1.38 var(--serif); letter-spacing: -.035em; }
 .editor-preview-document .markdown-body { max-width: none; overflow-wrap: anywhere; }
-#preview-body[aria-busy="true"] { opacity: .62; }
 .preview-empty { margin-top: 32px; color: var(--muted); font-family: var(--ui); font-size: 14px; }
 .editor-actions {
   z-index: 8;
