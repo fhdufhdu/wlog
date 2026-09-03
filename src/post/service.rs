@@ -1,6 +1,6 @@
 use super::{
     dto::PostForm,
-    model::{Post, PostLink, TempPost},
+    model::{Post, PostListItem, PostNeighbors, TempPost, TempPostListItem},
     repository::PostRepository,
 };
 use crate::{error::AppError, markdown};
@@ -16,14 +16,23 @@ impl PostService {
     pub fn new(repository: PostRepository) -> Self {
         Self { repository }
     }
-    pub async fn list_public(&self, topic_id: Option<Uuid>) -> Result<Vec<Post>, AppError> {
+    pub async fn list_public(&self, topic_id: Option<Uuid>) -> Result<Vec<PostListItem>, AppError> {
         Ok(self.repository.list_public(topic_id).await?)
     }
-    pub async fn list_all(&self) -> Result<Vec<Post>, AppError> {
+    pub async fn list_all(&self) -> Result<Vec<PostListItem>, AppError> {
         Ok(self.repository.list_all().await?)
     }
-    pub async fn list_unlinked_temp(&self) -> Result<Vec<TempPost>, AppError> {
+    pub async fn list_unlinked_temp(&self) -> Result<Vec<TempPostListItem>, AppError> {
         Ok(self.repository.list_unlinked_temp().await?)
+    }
+    pub async fn backfill_rendered_html(&self) -> Result<usize, AppError> {
+        let posts = self.repository.unrendered_posts().await?;
+        let count = posts.len();
+        for (id, source) in posts {
+            let content_html = markdown::render(&source);
+            self.repository.set_rendered_html(id, &content_html).await?;
+        }
+        Ok(count)
     }
     pub async fn public_by_slug(&self, slug: &str) -> Result<Post, AppError> {
         self.repository
@@ -31,15 +40,11 @@ impl PostService {
             .await?
             .ok_or(AppError::NotFound)
     }
-    pub async fn adjacent(
-        &self,
-        post: &Post,
-    ) -> Result<(Option<PostLink>, Option<PostLink>), AppError> {
-        let (previous, next) = tokio::try_join!(
-            self.repository.find_previous(post.id, post.published_at),
-            self.repository.find_next(post.id, post.published_at),
-        )?;
-        Ok((previous, next))
+    pub async fn adjacent(&self, post: &Post) -> Result<PostNeighbors, AppError> {
+        Ok(self
+            .repository
+            .find_neighbors(post.id, post.published_at, post.topic_id)
+            .await?)
     }
     pub async fn by_id(&self, id: Uuid) -> Result<Post, AppError> {
         self.repository.find_id(id).await?.ok_or(AppError::NotFound)
@@ -70,6 +75,7 @@ impl PostService {
             description: clean.description,
             description_manual: clean.description_manual,
             content_markdown: clean.content_markdown,
+            content_html: clean.content_html,
             topic_id: clean.topic_id,
             topic_name: previous.topic_name,
             created_at: previous.created_at,
@@ -88,6 +94,7 @@ impl PostService {
             description: clean.description,
             description_manual: clean.description_manual,
             content_markdown: clean.content_markdown,
+            content_html: clean.content_html,
             topic_id: clean.topic_id,
             topic_name: previous.topic_name,
             created_at: previous.created_at,
@@ -125,6 +132,7 @@ struct CleanPost {
     description_manual: bool,
     topic_id: Option<Uuid>,
     content_markdown: String,
+    content_html: String,
 }
 
 fn validate(form: PostForm, publishing: bool) -> Result<CleanPost, AppError> {
@@ -138,6 +146,11 @@ fn validate(form: PostForm, publishing: bool) -> Result<CleanPost, AppError> {
         )
     };
     let content_markdown = form.content_markdown.trim().to_owned();
+    let content_html = if form.content_html.trim().is_empty() {
+        markdown::render(&content_markdown)
+    } else {
+        markdown::sanitize_html(&form.content_html)
+    };
     let slug = slug::slugify(form.slug.trim());
     let description_manual = form.description_manual;
     let description = if !description_manual {
@@ -173,6 +186,7 @@ fn validate(form: PostForm, publishing: bool) -> Result<CleanPost, AppError> {
         description_manual,
         topic_id,
         content_markdown,
+        content_html,
     })
 }
 
@@ -200,6 +214,7 @@ mod tests {
             description_manual,
             topic_id: Uuid::new_v4().to_string(),
             content_markdown: "**자동으로 추출할 본문입니다.**".into(),
+            content_html: "<p><strong>자동으로 추출할 본문입니다.</strong></p>".into(),
             csrf_token: "test".into(),
         }
     }
@@ -221,6 +236,15 @@ mod tests {
     }
 
     #[test]
+    fn sanitizes_rendered_html_received_from_the_editor() {
+        let mut input = form("요약", true);
+        input.content_html = "<p><strong>본문</strong></p><script>alert('unsafe')</script>".into();
+        let clean = validate(input, true).unwrap();
+        assert!(clean.content_html.contains("<strong>본문</strong>"));
+        assert!(!clean.content_html.contains("<script"));
+    }
+
+    #[test]
     fn allows_incomplete_temp_but_not_incomplete_publication() {
         let empty = PostForm {
             title: String::new(),
@@ -229,6 +253,7 @@ mod tests {
             description_manual: false,
             topic_id: String::new(),
             content_markdown: String::new(),
+            content_html: String::new(),
             csrf_token: "test".into(),
         };
         assert!(validate(empty.clone(), false).is_ok());

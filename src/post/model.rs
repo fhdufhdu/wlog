@@ -8,6 +8,7 @@ pub struct Post {
     pub slug: String,
     pub description: String,
     pub content_markdown: String,
+    pub content_html: String,
     pub topic_id: Uuid,
     pub topic_name: String,
     pub published_at: DateTime<Utc>,
@@ -16,9 +17,36 @@ pub struct Post {
 }
 
 #[derive(Clone, Debug, sqlx::FromRow)]
+pub struct PostListItem {
+    pub id: Uuid,
+    pub title: String,
+    pub slug: String,
+    pub description: String,
+    pub topic_name: String,
+    pub published_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
+#[derive(Clone, Debug, sqlx::FromRow)]
+pub struct TempPostListItem {
+    pub id: Uuid,
+    pub title: String,
+    pub slug: String,
+    pub updated_at: DateTime<Utc>,
+}
+
+#[derive(Clone, Debug, sqlx::FromRow)]
 pub struct PostLink {
     pub title: String,
     pub slug: String,
+}
+
+#[derive(Clone, Debug)]
+pub struct PostNeighbors {
+    pub previous: Option<PostLink>,
+    pub next: Option<PostLink>,
+    pub topic_previous: Option<PostLink>,
+    pub topic_next: Option<PostLink>,
 }
 
 #[derive(Clone, Debug, sqlx::FromRow)]
@@ -30,6 +58,7 @@ pub struct TempPost {
     pub description: String,
     pub description_manual: bool,
     pub content_markdown: String,
+    pub content_html: String,
     pub topic_id: Option<Uuid>,
     pub topic_name: Option<String>,
     pub created_at: DateTime<Utc>,

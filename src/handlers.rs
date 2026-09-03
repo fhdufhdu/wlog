@@ -17,11 +17,11 @@ use crate::{
     about::dto::AboutForm,
     auth::Session,
     error::AppError,
-    image::service::sanitize_svg,
+    image::service::{normalize_raster, sanitize_svg},
     markdown,
     post::{
         dto::{IndexQuery, PostForm},
-        model::Post,
+        model::{Post, PostListItem},
     },
     state::AppState,
     topic::dto::TopicForm,
@@ -69,6 +69,7 @@ struct EditorPost {
     description_manual: bool,
     topic_id: String,
     content_markdown: String,
+    content_html: String,
     has_public_post: bool,
 }
 #[derive(Clone)]
@@ -106,6 +107,9 @@ struct PostTemplate {
     updated_iso: String,
     previous: PostNavigation,
     next: PostNavigation,
+    topic_previous: PostNavigation,
+    topic_next: PostNavigation,
+    topic_list_url: String,
 }
 #[derive(Template)]
 #[template(path = "about.html")]
@@ -155,6 +159,7 @@ struct AboutEditorTemplate {
     csrf: String,
     title: String,
     content_markdown: String,
+    content_html: String,
 }
 
 pub async fn index(
@@ -179,7 +184,7 @@ pub async fn index(
         .list_public(selected_topic)
         .await?
         .into_iter()
-        .map(card)
+        .map(list_card)
         .collect();
     let canonical = if let Some(topic_id) = selected_topic {
         let mut url = Url::parse(&format!("{}/", state.config.public_base_url))
@@ -214,7 +219,8 @@ pub async fn show_post(
     Path(slug): Path<String>,
 ) -> Result<Html<String>, AppError> {
     let post = state.post_service.public_by_slug(&slug).await?;
-    let (previous, next) = state.post_service.adjacent(&post).await?;
+    let neighbors = state.post_service.adjacent(&post).await?;
+    let topic_list_url = format!("/?topic={}", post.topic_id);
     let canonical = format!("{}/posts/{}", state.config.public_base_url, post.slug);
     let published_iso = post.published_at.to_rfc3339_opts(SecondsFormat::Secs, true);
     let updated_iso = post.updated_at.to_rfc3339_opts(SecondsFormat::Secs, true);
@@ -230,7 +236,7 @@ pub async fn show_post(
         json_ld,
         robots: "index,follow,max-image-preview:large".into(),
     };
-    let body_html = markdown::render(&post.content_markdown);
+    let body_html = rendered_html(&post.content_markdown, &post.content_html);
     render(PostTemplate {
         seo,
         site_name: state.config.site_name.clone(),
@@ -238,8 +244,11 @@ pub async fn show_post(
         body_html,
         published_iso,
         updated_iso,
-        previous: navigation(previous),
-        next: navigation(next),
+        previous: navigation(neighbors.previous),
+        next: navigation(neighbors.next),
+        topic_previous: navigation(neighbors.topic_previous),
+        topic_next: navigation(neighbors.topic_next),
+        topic_list_url,
     })
 }
 
@@ -272,7 +281,7 @@ pub async fn about(State(state): State<AppState>) -> Result<Html<String>, AppErr
         },
         site_name: state.config.site_name.clone(),
         title: page.title,
-        body_html: markdown::render(&page.content_markdown),
+        body_html: rendered_html(&page.content_markdown, &page.content_html),
     })
 }
 
@@ -412,6 +421,7 @@ pub async fn about_editor(
         csrf: session.csrf,
         title: page.title,
         content_markdown: page.content_markdown,
+        content_html: page.content_html,
     })?
     .into_response())
 }
@@ -424,7 +434,7 @@ pub async fn save_about(
     verify_csrf(&session.csrf, &form.csrf_token)?;
     state
         .about_service
-        .update(&form.title, &form.content_markdown)
+        .update(&form.title, &form.content_markdown, &form.content_html)
         .await?;
     Ok(Redirect::to("/about").into_response())
 }
@@ -501,6 +511,7 @@ pub async fn save_temp_post(
 #[derive(Serialize)]
 pub struct AutosaveResponse {
     saved_at: String,
+    content_html: String,
 }
 
 pub async fn autosave_temp_post(
@@ -513,6 +524,7 @@ pub async fn autosave_temp_post(
     let temp = state.post_service.save_temp(id, form).await?;
     Ok(Json(AutosaveResponse {
         saved_at: temp.updated_at.to_rfc3339_opts(SecondsFormat::Secs, true),
+        content_html: temp.content_html,
     }))
 }
 
@@ -547,20 +559,6 @@ pub async fn delete_temp_post(
     verify_csrf(&session.csrf, &form.csrf_token)?;
     state.post_service.delete_temp(id).await?;
     Ok(Redirect::to("/admin").into_response())
-}
-
-#[derive(Deserialize)]
-pub struct PreviewForm {
-    csrf_token: String,
-    content_markdown: String,
-}
-
-pub async fn preview_markdown(
-    Extension(session): Extension<Session>,
-    Form(form): Form<PreviewForm>,
-) -> Result<Html<String>, AppError> {
-    verify_csrf(&session.csrf, &form.csrf_token)?;
-    Ok(Html(markdown::render(&form.content_markdown)))
 }
 
 #[derive(Serialize)]
@@ -606,7 +604,9 @@ pub async fn upload_image(
     let (original_name, declared_content_type, image) =
         image.ok_or_else(|| AppError::Validation("이미지를 선택해주세요.".into()))?;
     if image.is_empty() || image.len() > state.config.max_upload_bytes {
-        return Err(AppError::Validation("이미지는 5MB 이하여야 합니다.".into()));
+        return Err(AppError::Validation(
+            "이미지가 업로드 용량 제한을 초과했습니다.".into(),
+        ));
     }
     let is_svg = declared_content_type.as_deref() == Some("image/svg+xml")
         || original_name
@@ -615,26 +615,40 @@ pub async fn upload_image(
     let (image, mime_type, extension) = if is_svg {
         let image = sanitize_svg(&image)?;
         if image.len() > state.config.max_upload_bytes {
-            return Err(AppError::Validation("이미지는 5MB 이하여야 합니다.".into()));
+            return Err(AppError::Validation(
+                "이미지가 업로드 용량 제한을 초과했습니다.".into(),
+            ));
         }
         (image, "image/svg+xml", "svg")
     } else {
         let kind = infer::get(&image)
             .ok_or_else(|| AppError::Validation("이미지 파일을 확인할 수 없습니다.".into()))?;
         let mime_type = kind.mime_type();
-        let extension = match mime_type {
-            "image/jpeg" => "jpg",
-            "image/png" => "png",
-            "image/gif" => "gif",
-            "image/webp" => "webp",
+        match mime_type {
+            "image/jpeg" | "image/png" | "image/gif" | "image/webp" => {}
             _ => {
                 return Err(AppError::Validation(
                     "JPEG, PNG, GIF, WebP, SVG만 업로드할 수 있습니다.".into(),
                 ));
             }
-        };
-        (image.to_vec(), mime_type, extension)
+        }
+        let input = image.to_vec();
+        let mime_type = mime_type.to_owned();
+        let max_dimension = state.config.image_max_dimension;
+        let max_pixels = state.config.image_max_pixels;
+        let quality = state.config.image_webp_quality;
+        let normalized = tokio::task::spawn_blocking(move || {
+            normalize_raster(input, &mime_type, max_dimension, max_pixels, quality)
+        })
+        .await
+        .map_err(|_| AppError::Validation("이미지 처리가 중단되었습니다.".into()))??;
+        (normalized.bytes, normalized.mime_type, normalized.extension)
     };
+    if image.len() > state.config.max_upload_bytes {
+        return Err(AppError::Validation(
+            "변환된 이미지가 업로드 용량 제한을 초과했습니다.".into(),
+        ));
+    }
     let id = Uuid::new_v4();
     let filename = format!("{id}.{extension}");
     let path = state.config.upload_dir.join(&filename);
@@ -733,6 +747,22 @@ fn card(post: Post) -> PostCard {
         date: post.published_at.format("%Y. %-m. %-d.").to_string(),
     }
 }
+fn rendered_html(markdown_source: &str, stored_html: &str) -> String {
+    if stored_html.trim().is_empty() {
+        markdown::render(markdown_source)
+    } else {
+        stored_html.to_owned()
+    }
+}
+fn list_card(post: PostListItem) -> PostCard {
+    PostCard {
+        title: post.title,
+        slug: post.slug,
+        summary: post.description,
+        topic: post.topic_name,
+        date: post.published_at.format("%Y. %-m. %-d.").to_string(),
+    }
+}
 fn navigation(post: Option<crate::post::model::PostLink>) -> PostNavigation {
     post.map_or_else(PostNavigation::default, |post| PostNavigation {
         title: post.title,
@@ -749,6 +779,7 @@ fn editor(post: crate::post::model::TempPost) -> EditorPost {
         description_manual: post.description_manual,
         topic_id: post.topic_id.map(|id| id.to_string()).unwrap_or_default(),
         content_markdown: post.content_markdown,
+        content_html: post.content_html,
         has_public_post: post.post_id.is_some(),
     }
 }

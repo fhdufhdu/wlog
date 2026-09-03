@@ -13,6 +13,7 @@ chrono = "0.4.45"
 comrak = { version = "0.54.0", default-features = false, features = ["syntect-fancy"] }
 dotenvy = "0.15.7"
 infer = "0.22.0"
+image = { version = "0.25.10", default-features = false, features = ["gif", "jpeg", "png", "webp"] }
 rpassword = "7.5.4"
 serde = { version = "1.0.229", features = ["derive"] }
 serde_json = "1.0.151"
@@ -26,3 +27,4 @@ tracing = "0.1.44"
 tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
 url = "2.5.8"
 uuid = { version = "1.26.0", features = ["v4", "serde"] }
+webp = { version = "0.3.1", default-features = false }

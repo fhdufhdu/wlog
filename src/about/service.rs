@@ -1,4 +1,4 @@
-use crate::error::AppError;
+use crate::{error::AppError, markdown};
 
 use super::{model::AboutPage, repository::AboutRepository};
 
@@ -16,9 +16,34 @@ impl AboutService {
         Ok(self.repository.get().await?)
     }
 
-    pub async fn update(&self, title: &str, content_markdown: &str) -> Result<AboutPage, AppError> {
+    pub async fn backfill_rendered_html(&self) -> Result<bool, AppError> {
+        let page = self.repository.get().await?;
+        if !page.content_html.is_empty() {
+            return Ok(false);
+        }
+        let content_html = markdown::render(&page.content_markdown);
+        self.repository
+            .set_rendered_html_if_empty(&content_html)
+            .await?;
+        Ok(true)
+    }
+
+    pub async fn update(
+        &self,
+        title: &str,
+        content_markdown: &str,
+        content_html: &str,
+    ) -> Result<AboutPage, AppError> {
         let title = validate_title(title)?;
-        Ok(self.repository.update(&title, content_markdown).await?)
+        let content_html = if content_html.trim().is_empty() {
+            markdown::render(content_markdown)
+        } else {
+            markdown::sanitize_html(content_html)
+        };
+        Ok(self
+            .repository
+            .update(&title, content_markdown, &content_html)
+            .await?)
     }
 }
 

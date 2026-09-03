@@ -11,6 +11,7 @@
 <main class="editor-shell">
   <form id="editor-form" class="editor-form" method="post" action="/admin/about">
     <input type="hidden" name="csrf_token" id="csrf-token" value="{{ csrf }}">
+    <textarea hidden name="content_html" id="content-html">{{ content_html }}</textarea>
     <div class="editor-mobile-tabs" role="tablist" aria-label="편집 화면">
       <button id="write-tab" class="editor-tab is-current" type="button" role="tab" aria-selected="true" aria-controls="write-panel">작성</button>
       <button id="preview-tab" class="editor-tab" type="button" role="tab" aria-selected="false" aria-controls="preview-panel">미리보기</button>
@@ -61,11 +62,11 @@
       <a class="editor-exit" href="/admin">나가기</a>
       <p id="save-status" class="editor-save-status" role="status">저장된 소개입니다</p>
       <div class="editor-action-buttons">
-        <button class="button-primary" type="submit">저장</button>
+        <button class="button-primary" type="submit" data-loading-title="소개를 저장하고 있습니다" data-loading-detail="작성한 내용을 반영하고 있습니다.">저장</button>
       </div>
     </footer>
   </form>
 </main>
 {% endblock %}
 
-{% block admin_scripts %}<script type="module" src="/mermaid.js"></script><script type="module" src="/math.js"></script><script src="/admin.js" defer></script>{% endblock %}
+{% block admin_scripts %}<script type="module" src="/mermaid.js"></script><script type="module" src="/math.js"></script><script type="module" src="/admin.js"></script>{% endblock %}

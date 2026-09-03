@@ -1,3 +1,9 @@
+import markdownit from "https://cdn.jsdelivr.net/npm/markdown-it@15.0.0/+esm";
+import taskLists from "https://cdn.jsdelivr.net/npm/markdown-it-task-lists@2.1.1/+esm";
+import footnote from "https://cdn.jsdelivr.net/npm/markdown-it-footnote@4.0.0/+esm";
+import DOMPurify from "https://cdn.jsdelivr.net/npm/dompurify@3.4.14/+esm";
+import hljs from "https://cdn.jsdelivr.net/npm/highlight.js@11.12.0/lib/common/+esm";
+
 const form = document.querySelector("#editor-form");
 const upload = document.querySelector("#image-upload");
 const editor = document.querySelector("#content_markdown");
@@ -13,21 +19,142 @@ const previewTab = document.querySelector("#preview-tab");
 const previewBody = document.querySelector("#preview-body");
 const previewTitle = document.querySelector("#preview-title");
 const csrfToken = document.querySelector("#csrf-token");
+const contentHtml = document.querySelector("#content-html");
 const writePane = document.querySelector("#write-panel");
+const operationDialog = document.querySelector("#operation-dialog");
+const operationTitle = document.querySelector("#operation-title");
+const operationDetail = document.querySelector("#operation-detail");
 
 let dirty = false;
 let changeVersion = 0;
 let descriptionEdited = descriptionManual?.value === "true";
 let autosaveController = null;
-let previewController = null;
 let previewTimer = null;
-let previewVersion = 0;
 let isComposing = false;
 let lastPreviewMarkdown = null;
 let editorResizeFrame = null;
+let submitting = false;
 const autosaveUrl = form?.dataset.autosaveUrl;
 const previewDelay = 120;
 const editorHeightBuffer = 48;
+
+function showOperation(titleText, detailText) {
+  if (!operationDialog) return;
+  if (operationTitle) operationTitle.textContent = titleText;
+  if (operationDetail) operationDetail.textContent = detailText;
+  document.body.setAttribute("aria-busy", "true");
+  if (!operationDialog.open) operationDialog.showModal();
+}
+
+function hideOperation() {
+  document.body.removeAttribute("aria-busy");
+  if (operationDialog?.open) operationDialog.close();
+}
+
+operationDialog?.addEventListener("cancel", (event) => {
+  event.preventDefault();
+});
+
+function mathPlugin(md) {
+  md.inline.ruler.after("escape", "math_inline", (state, silent) => {
+    const start = state.pos;
+    if (state.src[start] !== "$" || state.src[start + 1] === "$") return false;
+    let end = start + 1;
+    while ((end = state.src.indexOf("$", end)) !== -1) {
+      let escapes = 0;
+      for (let index = end - 1; index > start && state.src[index] === "\\"; index -= 1) escapes += 1;
+      if (escapes % 2 === 0) break;
+      end += 1;
+    }
+    if (end === -1 || end === start + 1 || state.src.slice(start + 1, end).includes("\n")) return false;
+    if (!silent) {
+      const token = state.push("math_inline", "span", 0);
+      token.content = state.src.slice(start + 1, end);
+    }
+    state.pos = end + 1;
+    return true;
+  });
+
+  md.block.ruler.after("blockquote", "math_block", (state, startLine, endLine, silent) => {
+    const start = state.bMarks[startLine] + state.tShift[startLine];
+    const firstLine = state.src.slice(start, state.eMarks[startLine]);
+    if (!firstLine.startsWith("$$")) return false;
+    if (silent) return true;
+
+    const lines = [];
+    const opening = firstLine.slice(2);
+    if (opening.trimEnd().endsWith("$$")) {
+      lines.push(opening.trimEnd().slice(0, -2));
+      state.line = startLine + 1;
+    } else {
+      if (opening) lines.push(opening);
+      let line = startLine + 1;
+      for (; line < endLine; line += 1) {
+        const value = state.src.slice(state.bMarks[line] + state.tShift[line], state.eMarks[line]);
+        if (value.trimEnd().endsWith("$$")) {
+          lines.push(value.trimEnd().slice(0, -2));
+          line += 1;
+          break;
+        }
+        lines.push(value);
+      }
+      state.line = line;
+    }
+    const token = state.push("math_block", "span", 0);
+    token.block = true;
+    token.content = lines.join("\n").trim();
+    return true;
+  });
+
+  md.renderer.rules.math_inline = (tokens, index) =>
+    `<span data-math-style="inline">${md.utils.escapeHtml(tokens[index].content)}</span>`;
+  md.renderer.rules.math_block = (tokens, index) =>
+    `<span data-math-style="display">${md.utils.escapeHtml(tokens[index].content)}</span>\n`;
+}
+
+function headingIdPlugin(md) {
+  md.renderer.rules.heading_open = (tokens, index, options, environment, renderer) => {
+    const text = tokens[index + 1]?.content || "heading";
+    const base = text
+      .normalize("NFKC")
+      .toLowerCase()
+      .replace(/[^\p{Letter}\p{Number}]+/gu, "-")
+      .replace(/^-|-$/g, "") || "heading";
+    const headingIds = environment.headingIds || (environment.headingIds = new Map());
+    const sequence = (headingIds.get(base) || 0) + 1;
+    headingIds.set(base, sequence);
+    tokens[index].attrSet("id", `section-${base}${sequence > 1 ? `-${sequence}` : ""}`);
+    return renderer.renderToken(tokens, index, options);
+  };
+}
+
+const markdown = markdownit({
+  html: true,
+  breaks: true,
+  linkify: true,
+  highlight(source, language) {
+    if (language === "mermaid") return markdown.utils.escapeHtml(source);
+    if (language && hljs.getLanguage(language)) {
+      return hljs.highlight(source, { language, ignoreIllegals: true }).value;
+    }
+    return markdown.utils.escapeHtml(source);
+  },
+}).use(taskLists, { enabled: true }).use(footnote).use(mathPlugin).use(headingIdPlugin);
+
+const renderImage = markdown.renderer.rules.image;
+markdown.renderer.rules.image = (tokens, index, options, environment, renderer) => {
+  tokens[index].attrSet("loading", "lazy");
+  tokens[index].attrSet("decoding", "async");
+  return renderImage(tokens, index, options, environment, renderer);
+};
+
+function renderMarkdown(source) {
+  return DOMPurify.sanitize(markdown.render(source, {}), {
+    USE_PROFILES: { html: true },
+    ADD_TAGS: ["details", "summary", "figure", "figcaption", "mark", "kbd", "samp"],
+    ADD_ATTR: ["data-math-style", "loading", "decoding", "width", "height"],
+  });
+}
 
 function resizeEditor() {
   if (!editor) return;
@@ -78,67 +205,32 @@ function showPreviewMessage(message, className = "preview-empty") {
   previewBody.replaceChildren(element);
 }
 
-async function requestPreview() {
-  if (!previewBody || !editor || !csrfToken) return;
+function requestPreview() {
+  if (!previewBody || !editor || !contentHtml) return;
   window.clearTimeout(previewTimer);
   const markdown = editor.value;
   if (markdown === lastPreviewMarkdown) return;
-  previewController?.abort();
-  const requestVersion = ++previewVersion;
 
   if (!markdown.trim()) {
     lastPreviewMarkdown = markdown;
-    previewBody.removeAttribute("aria-busy");
+    contentHtml.value = "";
     showPreviewMessage("본문을 입력하면 여기에 미리보기가 표시됩니다.");
     return;
   }
 
-  previewController = new AbortController();
-  previewBody.setAttribute("aria-busy", "true");
-  const data = new URLSearchParams();
-  data.set("csrf_token", csrfToken.value);
-  data.set("content_markdown", markdown);
-
-  try {
-    const response = await fetch("/admin/preview", {
-      method: "POST",
-      body: data,
-      credentials: "same-origin",
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      signal: previewController.signal,
-    });
-    if (!response.ok) throw new Error(await response.text());
-    const html = await response.text();
-    if (requestVersion === previewVersion) {
-      lastPreviewMarkdown = markdown;
-      previewBody.innerHTML = html;
-      window.requestAnimationFrame(() => {
-        if (requestVersion !== previewVersion) return;
-        window.dispatchEvent(new CustomEvent("wlog:markdown-rendered", {
-          detail: { root: previewBody },
-        }));
-      });
-    }
-  } catch (error) {
-    if (error.name !== "AbortError" && requestVersion === previewVersion) {
-      showPreviewMessage(error.message || "미리보기를 불러오지 못했습니다.", "form-alert");
-    }
-  } finally {
-    if (requestVersion === previewVersion) {
-      previewController = null;
-      previewBody.removeAttribute("aria-busy");
-    }
-  }
+  const html = renderMarkdown(markdown);
+  lastPreviewMarkdown = markdown;
+  contentHtml.value = html;
+  previewBody.innerHTML = html;
+  window.requestAnimationFrame(() => {
+    window.dispatchEvent(new CustomEvent("wlog:markdown-rendered", {
+      detail: { root: previewBody },
+    }));
+  });
 }
 
 function schedulePreview(delay = previewDelay) {
   if (isComposing) return;
-  if (previewController) {
-    previewVersion += 1;
-    previewController.abort();
-    previewController = null;
-    previewBody?.removeAttribute("aria-busy");
-  }
   window.clearTimeout(previewTimer);
   previewTimer = window.setTimeout(requestPreview, delay);
 }
@@ -263,6 +355,7 @@ document.querySelectorAll("[data-markdown]").forEach((button) => {
 
 async function autosave() {
   if (!dirty || !form || !autosaveUrl || autosaveController) return;
+  requestPreview();
   const savingVersion = changeVersion;
   autosaveController = new AbortController();
   setSaveStatus("저장 중…", "saving");
@@ -280,6 +373,15 @@ async function autosave() {
     });
     if (!response.ok) throw new Error(await response.text());
     const result = await response.json();
+    if (contentHtml && contentHtml.value !== result.content_html) {
+      contentHtml.value = result.content_html;
+      if (previewBody) {
+        previewBody.innerHTML = result.content_html;
+        window.dispatchEvent(new CustomEvent("wlog:markdown-rendered", {
+          detail: { root: previewBody },
+        }));
+      }
+    }
     dirty = changeVersion !== savingVersion;
     if (dirty) {
       setSaveStatus("새 변경사항 저장 대기", "dirty");
@@ -310,16 +412,23 @@ form?.addEventListener("invalid", (event) => {
   setSaveStatus("필수 항목을 확인해주세요.", "error");
 }, true);
 
-form?.addEventListener("submit", () => {
+form?.addEventListener("submit", (event) => {
+  submitting = true;
+  requestPreview();
   autosaveController?.abort();
-  previewController?.abort();
   window.clearTimeout(previewTimer);
   form.querySelectorAll("button[type='submit']").forEach((button) => { button.disabled = true; });
   setSaveStatus("저장 중…", "saving");
   dirty = false;
+  const submitter = event.submitter;
+  showOperation(
+    submitter?.dataset.loadingTitle || "내용을 저장하고 있습니다",
+    submitter?.dataset.loadingDetail || "처리가 끝날 때까지 잠시만 기다려주세요.",
+  );
 });
 
 window.addEventListener("beforeunload", (event) => {
+  if (submitting) return;
   if (!dirty && !autosaveController) return;
   event.preventDefault();
   event.returnValue = "";
@@ -338,6 +447,34 @@ async function uploadImage(file) {
   return response.json();
 }
 
+async function uploadImageFiles(files, concurrency = 3) {
+  const results = new Array(files.length);
+  let cursor = 0;
+  let completed = 0;
+
+  async function worker() {
+    while (cursor < files.length) {
+      const index = cursor;
+      cursor += 1;
+      try {
+        results[index] = { result: await uploadImage(files[index]) };
+      } catch (error) {
+        results[index] = { error };
+      }
+      completed += 1;
+      if (uploadStatus) uploadStatus.textContent = `사진 ${completed}/${files.length}장을 처리했습니다…`;
+      showOperation(
+        "사진을 올리고 있습니다",
+        `${completed}/${files.length}장 처리됨 · 이미지 크기와 형식을 최적화하고 있습니다.`,
+      );
+    }
+  }
+
+  const workerCount = Math.min(concurrency, files.length);
+  await Promise.all(Array.from({ length: workerCount }, () => worker()));
+  return results;
+}
+
 async function handleImageFiles(fileList) {
   if (!editor || !csrfToken) return;
   const files = [...fileList].filter((file) => file.type.startsWith("image/"));
@@ -347,21 +484,24 @@ async function handleImageFiles(fileList) {
   }
 
   if (uploadStatus) uploadStatus.textContent = `사진 ${files.length}장을 올리는 중입니다…`;
-  let uploaded = 0;
+  showOperation(
+    "사진을 올리고 있습니다",
+    `0/${files.length}장 처리됨 · 이미지 크기와 형식을 최적화하고 있습니다.`,
+  );
   try {
-    for (const file of files) {
-      const result = await uploadImage(file);
-      replaceEditorSelection(`\n${result.markdown}\n`);
-      uploaded += 1;
+    const results = await uploadImageFiles(files);
+    const uploaded = results.flatMap((entry) => entry.result ? [entry.result] : []);
+    const failed = results.length - uploaded.length;
+    if (uploaded.length) {
+      replaceEditorSelection(`\n${uploaded.map((result) => result.markdown).join("\n")}\n`);
     }
     if (uploadStatus) {
-      uploadStatus.textContent = `사진 ${uploaded}장을 본문에 추가했습니다. 대체 텍스트를 수정해주세요.`;
+      uploadStatus.textContent = failed
+        ? `사진 ${uploaded.length}장은 추가했고 ${failed}장은 올리지 못했습니다.`
+        : `사진 ${uploaded.length}장을 본문에 추가했습니다. 대체 텍스트를 수정해주세요.`;
     }
-  } catch (error) {
-    if (uploadStatus) {
-      const progress = uploaded ? `${uploaded}장은 추가했습니다. ` : "";
-      uploadStatus.textContent = `${progress}${error.message || "사진을 올리지 못했습니다."}`;
-    }
+  } finally {
+    hideOperation();
   }
 }
 

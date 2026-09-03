@@ -32,10 +32,36 @@ pub fn build_router(state: AppState) -> Router {
         .fallback_service(ServeDir::new(uploads).append_index_html_on_directories(false))
         .layer(
             tower_http::set_header::SetResponseHeaderLayer::if_not_present(
+                header::CACHE_CONTROL,
+                HeaderValue::from_static("public, max-age=31536000, immutable"),
+            ),
+        )
+        .layer(
+            tower_http::set_header::SetResponseHeaderLayer::if_not_present(
                 header::CONTENT_SECURITY_POLICY,
                 HeaderValue::from_static(
                     "sandbox; default-src 'none'; img-src 'self' data:; style-src 'unsafe-inline'",
                 ),
+            ),
+        );
+    let static_files = Router::<AppState>::new()
+        .route_service("/styles.css", ServeFile::new("styles.css"))
+        .route_service("/admin.js", ServeFile::new("admin.js"))
+        .route_service("/theme.js", ServeFile::new("theme.js"))
+        .route_service("/mermaid.js", ServeFile::new("mermaid.js"))
+        .route_service("/math.js", ServeFile::new("math.js"))
+        .layer(
+            tower_http::set_header::SetResponseHeaderLayer::if_not_present(
+                header::CACHE_CONTROL,
+                HeaderValue::from_static("public, max-age=3600"),
+            ),
+        );
+    let assets = Router::<AppState>::new()
+        .nest_service("/assets", ServeDir::new("assets"))
+        .layer(
+            tower_http::set_header::SetResponseHeaderLayer::if_not_present(
+                header::CACHE_CONTROL,
+                HeaderValue::from_static("public, max-age=604800"),
             ),
         );
     let admin = Router::new()
@@ -71,7 +97,6 @@ pub fn build_router(state: AppState) -> Router {
             "/admin/temp-posts/{id}/delete",
             post(handlers::delete_temp_post),
         )
-        .route("/admin/preview", post(handlers::preview_markdown))
         .route(
             "/admin/uploads",
             post(handlers::upload_image).layer(DefaultBodyLimit::max(upload_limit)),
@@ -94,12 +119,8 @@ pub fn build_router(state: AppState) -> Router {
         .route("/robots.txt", get(handlers::robots))
         .route("/health/live", get(handlers::health_live))
         .route("/health/ready", get(handlers::health_ready))
-        .route_service("/styles.css", ServeFile::new("styles.css"))
-        .route_service("/admin.js", ServeFile::new("admin.js"))
-        .route_service("/theme.js", ServeFile::new("theme.js"))
-        .route_service("/mermaid.js", ServeFile::new("mermaid.js"))
-        .route_service("/math.js", ServeFile::new("math.js"))
-        .nest_service("/assets", ServeDir::new("assets"))
+        .merge(static_files)
+        .merge(assets)
         .nest("/uploads", uploaded_files)
         .layer(PropagateRequestIdLayer::new(request_id.clone()))
         .layer(CompressionLayer::new())

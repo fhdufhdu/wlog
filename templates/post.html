@@ -9,9 +9,26 @@
     </header>
     <div class="prose markdown-body">{{ body_html|safe }}</div>
     <nav class="article-nav" aria-label="글 이동">
-      {% if previous.exists %}<a class="article-nav-post article-nav-previous" href="/posts/{{ previous.slug }}"><span>이전 글</span><strong>{{ previous.title }}</strong></a>{% endif %}
-      {% if next.exists %}<a class="article-nav-post article-nav-next" href="/posts/{{ next.slug }}"><span>다음 글</span><strong>{{ next.title }}</strong></a>{% endif %}
-      <a class="article-nav-list" href="/">글 목록</a>
+      <section class="article-nav-group" aria-labelledby="all-post-navigation">
+        <header class="article-nav-heading">
+          <h2 id="all-post-navigation">전체 글</h2>
+          <a href="/">전체 글 목록</a>
+        </header>
+        <div class="article-nav-links">
+          {% if previous.exists %}<a class="article-nav-post article-nav-previous" href="/posts/{{ previous.slug }}"><span>이전 글</span><strong>{{ previous.title }}</strong></a>{% else %}<p class="article-nav-empty">이전 글이 없습니다.</p>{% endif %}
+          {% if next.exists %}<a class="article-nav-post article-nav-next" href="/posts/{{ next.slug }}"><span>다음 글</span><strong>{{ next.title }}</strong></a>{% else %}<p class="article-nav-empty article-nav-empty-next">다음 글이 없습니다.</p>{% endif %}
+        </div>
+      </section>
+      <section class="article-nav-group" aria-labelledby="topic-post-navigation">
+        <header class="article-nav-heading">
+          <h2 id="topic-post-navigation">{{ post.topic }}</h2>
+          <a href="{{ topic_list_url }}">같은 주제 글 목록</a>
+        </header>
+        <div class="article-nav-links">
+          {% if topic_previous.exists %}<a class="article-nav-post article-nav-previous" href="/posts/{{ topic_previous.slug }}"><span>이전 글</span><strong>{{ topic_previous.title }}</strong></a>{% else %}<p class="article-nav-empty">이전 글이 없습니다.</p>{% endif %}
+          {% if topic_next.exists %}<a class="article-nav-post article-nav-next" href="/posts/{{ topic_next.slug }}"><span>다음 글</span><strong>{{ topic_next.title }}</strong></a>{% else %}<p class="article-nav-empty article-nav-empty-next">다음 글이 없습니다.</p>{% endif %}
+        </div>
+      </section>
     </nav>
   </article>
 </main>

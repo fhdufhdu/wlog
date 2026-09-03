@@ -11,10 +11,6 @@ use std::{collections::HashSet, sync::LazyLock};
 static HIGHLIGHTER: LazyLock<SyntectAdapter> =
     LazyLock::new(|| SyntectAdapter::new(Some("base16-ocean.dark")));
 
-pub fn warm_up() {
-    LazyLock::force(&HIGHLIGHTER);
-}
-
 pub fn render(markdown: &str) -> String {
     let mut options = Options::default();
     options.extension.strikethrough = true;
@@ -34,6 +30,10 @@ pub fn render(markdown: &str) -> String {
         },
     };
     let html = markdown_to_html_with_plugins(markdown, &options, &plugins);
+    sanitize_html(&html)
+}
+
+pub fn sanitize_html(html: &str) -> String {
     let mut cleaner = Builder::default();
     cleaner
         .add_tags(&[
@@ -54,12 +54,12 @@ pub fn render(markdown: &str) -> String {
         .add_tag_attributes("pre", &["data-math-style"])
         .add_tag_attributes("code", &["class", "data-math-style"])
         .add_tag_attributes("details", &["open"])
-        .add_tag_attributes("img", &["loading", "width", "height"])
+        .add_tag_attributes("img", &["loading", "decoding", "width", "height"])
         .add_tag_attributes("input", &["type", "checked", "disabled"]);
     for heading in ["h1", "h2", "h3", "h4", "h5", "h6"] {
         cleaner.add_tag_attributes(heading, &["id"]);
     }
-    cleaner.clean(&html).to_string()
+    cleaner.clean(html).to_string()
 }
 
 pub fn excerpt(markdown: &str, limit: usize) -> String {
@@ -123,6 +123,16 @@ mod tests {
         assert!(!html.contains("<script"));
         assert!(html.contains("<pre"));
         assert!(html.contains("class="));
+    }
+
+    #[test]
+    fn sanitizes_client_rendered_html() {
+        let html = super::sanitize_html(
+            r#"<p><span class="hljs-keyword">fn</span></p><span data-math-style="inline">x</span><script>alert(1)</script>"#,
+        );
+        assert!(html.contains("hljs-keyword"));
+        assert!(html.contains("data-math-style="));
+        assert!(!html.contains("<script"));
     }
 
     #[test]

@@ -8,7 +8,6 @@
   <link rel="icon" href="/assets/favicon.svg" type="image/svg+xml">
   <title>{{ page_title }} — {{ site_name }}</title>
   <script src="/theme.js"></script>
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.18.5/dist/katex.css" integrity="sha384-zfuvpaZ3OjmRVaLPkCCrb0YbSTd5NgPmLIum+Cmsr06+WhmECuyum4BEipwHyWW4" crossorigin="anonymous">
   <link rel="stylesheet" href="/styles.css">
 </head>
 <body class="admin-body {% block body_class %}{% endblock %}">
@@ -17,6 +16,11 @@
     <nav>{% block admin_nav %}{% endblock %}{% include "theme_toggle.html" %}</nav>
   </header>
   {% block admin_content %}{% endblock %}
+  <dialog id="operation-dialog" class="operation-dialog" aria-labelledby="operation-title" aria-describedby="operation-detail">
+    <div class="operation-progress" aria-hidden="true"><span></span></div>
+    <h2 id="operation-title">처리 중입니다</h2>
+    <p id="operation-detail" aria-live="polite">잠시만 기다려주세요.</p>
+  </dialog>
   {% block admin_scripts %}{% endblock %}
 </body>
 </html>

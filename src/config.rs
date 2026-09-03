@@ -16,6 +16,9 @@ pub struct Config {
     pub secure_cookie: bool,
     pub upload_dir: PathBuf,
     pub max_upload_bytes: usize,
+    pub image_max_dimension: u32,
+    pub image_max_pixels: u64,
+    pub image_webp_quality: f32,
     pub image_orphan_grace_hours: i64,
 }
 
@@ -38,6 +41,30 @@ impl Config {
         let max_upload_bytes = value("MAX_UPLOAD_BYTES", "5242880")
             .parse()
             .map_err(|e| AppError::Config(format!("MAX_UPLOAD_BYTES: {e}")))?;
+        let image_max_dimension = value("IMAGE_MAX_DIMENSION", "2560")
+            .parse()
+            .map_err(|e| AppError::Config(format!("IMAGE_MAX_DIMENSION: {e}")))?;
+        if !(320..=8192).contains(&image_max_dimension) {
+            return Err(AppError::Config(
+                "IMAGE_MAX_DIMENSION은 320 이상 8192 이하여야 합니다".into(),
+            ));
+        }
+        let image_max_pixels = value("IMAGE_MAX_PIXELS", "40000000")
+            .parse()
+            .map_err(|e| AppError::Config(format!("IMAGE_MAX_PIXELS: {e}")))?;
+        if !(1_000_000..=100_000_000).contains(&image_max_pixels) {
+            return Err(AppError::Config(
+                "IMAGE_MAX_PIXELS는 1000000 이상 100000000 이하여야 합니다".into(),
+            ));
+        }
+        let image_webp_quality = value("IMAGE_WEBP_QUALITY", "82")
+            .parse()
+            .map_err(|e| AppError::Config(format!("IMAGE_WEBP_QUALITY: {e}")))?;
+        if !(1.0..=100.0).contains(&image_webp_quality) {
+            return Err(AppError::Config(
+                "IMAGE_WEBP_QUALITY는 1 이상 100 이하여야 합니다".into(),
+            ));
+        }
         let image_orphan_grace_hours = value("IMAGE_ORPHAN_GRACE_HOURS", "24")
             .parse()
             .map_err(|e| AppError::Config(format!("IMAGE_ORPHAN_GRACE_HOURS: {e}")))?;
@@ -74,6 +101,9 @@ impl Config {
             session_secret,
             upload_dir: PathBuf::from(value("UPLOAD_DIR", "uploads")),
             max_upload_bytes,
+            image_max_dimension,
+            image_max_pixels,
+            image_webp_quality,
             image_orphan_grace_hours,
         })
     }

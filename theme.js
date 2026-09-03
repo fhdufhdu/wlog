@@ -7,10 +7,15 @@ let scrollProgressRoot = null;
 
 function updateScrollProgress() {
   scrollProgressFrame = null;
-  const scrollRoot = scrollProgressRoot || document.scrollingElement || document.documentElement;
-  const scrollableHeight = scrollRoot.scrollHeight - scrollRoot.clientHeight;
+  const scrollRoot = scrollProgressRoot;
+  const scrollTop = scrollRoot
+    ? scrollRoot.scrollTop
+    : window.scrollY || document.documentElement.scrollTop || document.body.scrollTop || 0;
+  const scrollableHeight = scrollRoot
+    ? scrollRoot.scrollHeight - scrollRoot.clientHeight
+    : Math.max(document.documentElement.scrollHeight, document.body.scrollHeight) - window.innerHeight;
   const progress = scrollableHeight > 0
-    ? Math.min(1, Math.max(0, scrollRoot.scrollTop / scrollableHeight))
+    ? Math.min(1, Math.max(0, scrollTop / scrollableHeight))
     : 1;
   root.style.setProperty("--scroll-progress", String(progress));
 }

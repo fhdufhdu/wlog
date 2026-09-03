@@ -12,6 +12,7 @@
   <form id="editor-form" class="editor-form" method="post" action="{{ action }}" data-autosave-url="/admin/temp-posts/{{ post.id }}/autosave">
     <input type="hidden" name="csrf_token" id="csrf-token" value="{{ csrf }}">
     <input type="hidden" name="description_manual" id="description-manual" value="{% if post.description_manual %}true{% else %}false{% endif %}">
+    <textarea hidden name="content_html" id="content-html">{{ post.content_html }}</textarea>
     <div class="editor-mobile-tabs" role="tablist" aria-label="편집 화면">
       <button id="write-tab" class="editor-tab is-current" type="button" role="tab" aria-selected="true" aria-controls="write-panel">작성</button>
       <button id="preview-tab" class="editor-tab" type="button" role="tab" aria-selected="false" aria-controls="preview-panel">미리보기</button>
@@ -88,12 +89,12 @@
       <a class="editor-exit" href="/admin">나가기</a>
       <p id="save-status" class="editor-save-status" role="status">모든 변경사항이 저장됨</p>
       <div class="editor-action-buttons">
-        <button class="button-secondary" type="submit" formaction="/admin/temp-posts/{{ post.id }}/save" formnovalidate>임시저장</button>
-        <button class="button-primary" type="submit">{% if post.has_public_post %}변경사항 발행{% else %}발행{% endif %}</button>
+        <button class="button-secondary" type="submit" formaction="/admin/temp-posts/{{ post.id }}/save" formnovalidate data-loading-title="임시저장 중입니다" data-loading-detail="작성 중인 내용을 안전하게 보관하고 있습니다.">임시저장</button>
+        <button class="button-primary" type="submit" data-loading-title="게시글을 발행하고 있습니다" data-loading-detail="이미지와 본문을 확인한 뒤 공개합니다. 페이지를 닫지 마세요.">{% if post.has_public_post %}변경사항 발행{% else %}발행{% endif %}</button>
       </div>
     </footer>
   </form>
 </main>
 {% endblock %}
 
-{% block admin_scripts %}<script type="module" src="/mermaid.js"></script><script type="module" src="/math.js"></script><script src="/admin.js" defer></script>{% endblock %}
+{% block admin_scripts %}<script type="module" src="/mermaid.js"></script><script type="module" src="/math.js"></script><script type="module" src="/admin.js"></script>{% endblock %}
