@@ -17,7 +17,8 @@ Rust 2024, Axum, SQLx, PostgreSQL로 만든 서버 렌더링 개인 블로그입
 - `axum-extra` 서명 쿠키, `HttpOnly`, `SameSite=Strict` 세션과 CSRF 토큰
 - 권한 확인이 적용된 글 생성·수정·삭제와 이미지 업로드
 - 업로드 이미지 DB 기록, 래스터 이미지 WebP 정규화·리사이징, 게시글 연결 동기화, 미사용 파일 자동 정리
-- 공개 글과 분리된 `temp_posts` 자동 임시저장, 서버 렌더링 미리보기, 명시적 발행
+- 공개 글과 분리된 `temp_posts` 자동 임시저장, 브라우저 실시간 미리보기, 명시적 발행
+- DB에는 Markdown 원문만 보관하고 공개 요청에서 안전한 HTML로 서버 렌더링
 - CommonMark/GFM Markdown, 안전한 HTML 정리, 서버 측 코드 구문 강조
 - 본문 기반 SEO 설명 자동 생성, canonical, Open Graph, Twitter Card, BlogPosting JSON-LD
 - `robots.txt`, `sitemap.xml`, live/readiness 상태 확인

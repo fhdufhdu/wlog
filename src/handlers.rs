@@ -7,7 +7,7 @@ use axum::{
     response::{Html, IntoResponse, Redirect, Response},
 };
 use axum_extra::extract::cookie::SignedCookieJar;
-use chrono::SecondsFormat;
+use chrono::{DateTime, FixedOffset, SecondsFormat, Utc};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use url::Url;
@@ -69,7 +69,6 @@ struct EditorPost {
     description_manual: bool,
     topic_id: String,
     content_markdown: String,
-    content_html: String,
     has_public_post: bool,
 }
 #[derive(Clone)]
@@ -105,11 +104,11 @@ struct PostTemplate {
     body_html: String,
     published_iso: String,
     updated_iso: String,
+    updated_display: String,
     previous: PostNavigation,
     next: PostNavigation,
-    topic_previous: PostNavigation,
-    topic_next: PostNavigation,
-    topic_list_url: String,
+    navigation_query: String,
+    list_url: String,
 }
 #[derive(Template)]
 #[template(path = "about.html")]
@@ -160,7 +159,6 @@ struct AboutEditorTemplate {
     csrf: String,
     title: String,
     content_markdown: String,
-    content_html: String,
     max_upload_bytes: usize,
 }
 
@@ -219,13 +217,25 @@ pub async fn index(
 pub async fn show_post(
     State(state): State<AppState>,
     Path(slug): Path<String>,
+    Query(query): Query<IndexQuery>,
 ) -> Result<Html<String>, AppError> {
     let post = state.post_service.public_by_slug(&slug).await?;
-    let neighbors = state.post_service.adjacent(&post).await?;
-    let topic_list_url = format!("/?topic={}", post.topic_id);
+    let within_topic = query.topic == Some(post.topic_id)
+        || query
+            .category
+            .as_deref()
+            .is_some_and(|name| name.trim() == post.topic_name);
+    let neighbors = state.post_service.adjacent(&post, within_topic).await?;
+    let navigation_query = if within_topic {
+        format!("?topic={}", post.topic_id)
+    } else {
+        String::new()
+    };
+    let list_url = format!("/{navigation_query}");
     let canonical = format!("{}/posts/{}", state.config.public_base_url, post.slug);
     let published_iso = post.published_at.to_rfc3339_opts(SecondsFormat::Secs, true);
     let updated_iso = post.updated_at.to_rfc3339_opts(SecondsFormat::Secs, true);
+    let updated_display = format_kst(&post.updated_at, "%Y-%m-%d %H:%M:%S");
     let json_ld = json!({"@context":"https://schema.org","@type":"BlogPosting","headline":post.title,
         "description":post.description,"datePublished":published_iso,"dateModified":updated_iso,"mainEntityOfPage":canonical,
         "articleSection":post.topic_name,"author":{"@type":"Person","name":state.config.site_name}});
@@ -238,7 +248,7 @@ pub async fn show_post(
         json_ld,
         robots: "index,follow,max-image-preview:large".into(),
     };
-    let body_html = rendered_html(&post.content_markdown, &post.content_html);
+    let body_html = markdown::render(&post.content_markdown);
     render(PostTemplate {
         seo,
         site_name: state.config.site_name.clone(),
@@ -246,11 +256,11 @@ pub async fn show_post(
         body_html,
         published_iso,
         updated_iso,
+        updated_display,
         previous: navigation(neighbors.previous),
         next: navigation(neighbors.next),
-        topic_previous: navigation(neighbors.topic_previous),
-        topic_next: navigation(neighbors.topic_next),
-        topic_list_url,
+        navigation_query,
+        list_url,
     })
 }
 
@@ -283,7 +293,7 @@ pub async fn about(State(state): State<AppState>) -> Result<Html<String>, AppErr
         },
         site_name: state.config.site_name.clone(),
         title: page.title,
-        body_html: rendered_html(&page.content_markdown, &page.content_html),
+        body_html: markdown::render(&page.content_markdown),
     })
 }
 
@@ -423,7 +433,6 @@ pub async fn about_editor(
         csrf: session.csrf,
         title: page.title,
         content_markdown: page.content_markdown,
-        content_html: page.content_html,
         max_upload_bytes: state.config.max_upload_bytes,
     })?
     .into_response())
@@ -437,7 +446,7 @@ pub async fn save_about(
     verify_csrf(&session.csrf, &form.csrf_token)?;
     state
         .about_service
-        .update(&form.title, &form.content_markdown, &form.content_html)
+        .update(&form.title, &form.content_markdown)
         .await?;
     Ok(Redirect::to("/about").into_response())
 }
@@ -514,7 +523,6 @@ pub async fn save_temp_post(
 #[derive(Serialize)]
 pub struct AutosaveResponse {
     saved_at: String,
-    content_html: String,
 }
 
 pub async fn autosave_temp_post(
@@ -527,7 +535,6 @@ pub async fn autosave_temp_post(
     let temp = state.post_service.save_temp(id, form).await?;
     Ok(Json(AutosaveResponse {
         saved_at: temp.updated_at.to_rfc3339_opts(SecondsFormat::Secs, true),
-        content_html: temp.content_html,
     }))
 }
 
@@ -747,14 +754,7 @@ fn card(post: Post) -> PostCard {
         slug: post.slug,
         summary: post.description,
         topic: post.topic_name,
-        date: post.published_at.format("%Y. %-m. %-d.").to_string(),
-    }
-}
-fn rendered_html(markdown_source: &str, stored_html: &str) -> String {
-    if stored_html.trim().is_empty() {
-        markdown::render(markdown_source)
-    } else {
-        stored_html.to_owned()
+        date: format_kst(&post.published_at, "%Y. %-m. %-d."),
     }
 }
 fn list_card(post: PostListItem) -> PostCard {
@@ -763,8 +763,13 @@ fn list_card(post: PostListItem) -> PostCard {
         slug: post.slug,
         summary: post.description,
         topic: post.topic_name,
-        date: post.published_at.format("%Y. %-m. %-d.").to_string(),
+        date: format_kst(&post.published_at, "%Y. %-m. %-d."),
     }
+}
+
+fn format_kst(timestamp: &DateTime<Utc>, format: &str) -> String {
+    let kst = FixedOffset::east_opt(9 * 60 * 60).expect("KST offset is valid");
+    timestamp.with_timezone(&kst).format(format).to_string()
 }
 fn navigation(post: Option<crate::post::model::PostLink>) -> PostNavigation {
     post.map_or_else(PostNavigation::default, |post| PostNavigation {
@@ -782,7 +787,6 @@ fn editor(post: crate::post::model::TempPost) -> EditorPost {
         description_manual: post.description_manual,
         topic_id: post.topic_id.map(|id| id.to_string()).unwrap_or_default(),
         content_markdown: post.content_markdown,
-        content_html: post.content_html,
         has_public_post: post.post_id.is_some(),
     }
 }

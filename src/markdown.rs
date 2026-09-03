@@ -126,7 +126,7 @@ mod tests {
     }
 
     #[test]
-    fn sanitizes_client_rendered_html() {
+    fn sanitizes_rendered_html() {
         let html = super::sanitize_html(
             r#"<p><span class="hljs-keyword">fn</span></p><span data-math-style="inline">x</span><script>alert(1)</script>"#,
         );

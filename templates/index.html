@@ -11,7 +11,7 @@
     {% if posts.is_empty() %}<p class="empty-state">아직 공개된 글이 없습니다.</p>{% else %}
     <ol class="post-list server-post-list">
       {% for post in posts %}<li class="post-item">
-        <a class="post-link" href="/posts/{{ post.slug }}">{{ post.title }}</a>
+        <a class="post-link" href="/posts/{{ post.slug }}{% if topic_id != "" %}?topic={{ topic_id }}{% endif %}">{{ post.title }}</a>
         <div class="post-meta"><time>{{ post.date }}</time><span class="post-topic">{{ post.topic }}</span></div>
         <p>{{ post.summary }}</p>
       </li>{% endfor %}

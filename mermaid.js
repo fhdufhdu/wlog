@@ -36,7 +36,7 @@ function initializeMermaid(mermaid) {
 }
 
 function collectDiagrams(root) {
-  return [...root.querySelectorAll("pre > code.language-mermaid")].map((code) => {
+  root.querySelectorAll("pre > code.language-mermaid").forEach((code) => {
     const source = code.textContent;
     const diagram = document.createElement("div");
     diagram.className = "mermaid mermaid-loading";
@@ -45,6 +45,7 @@ function collectDiagrams(root) {
     diagram.textContent = source;
     code.parentElement.replaceWith(diagram);
   });
+
   return [...root.querySelectorAll(".mermaid.mermaid-loading[data-mermaid-source]")].map((diagram) => ({
     diagram,
     source: diagram.dataset.mermaidSource,
@@ -94,12 +95,18 @@ async function renderRoot(root) {
   }
 }
 
-function renderMermaid(root = document) {
-  renderQueue = renderQueue.then(() => renderRoot(root));
+export function renderMermaid(root = document) {
+  // A failed or stale render must not prevent every later live-preview update.
+  renderQueue = renderQueue
+    .catch((error) => {
+      console.error("이전 Mermaid 렌더링 작업을 복구했습니다.", error);
+    })
+    .then(() => renderRoot(root));
   return renderQueue;
 }
 
 window.addEventListener("wlog:markdown-rendered", (event) => {
+  if (event.detail?.mermaidHandled) return;
   renderMermaid(event.detail?.root || document);
 });
 

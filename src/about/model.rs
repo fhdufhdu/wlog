@@ -4,6 +4,5 @@ use chrono::{DateTime, Utc};
 pub struct AboutPage {
     pub title: String,
     pub content_markdown: String,
-    pub content_html: String,
     pub updated_at: DateTime<Utc>,
 }

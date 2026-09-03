@@ -12,7 +12,6 @@
   <form id="editor-form" class="editor-form" method="post" action="{{ action }}" data-autosave-url="/admin/temp-posts/{{ post.id }}/autosave">
     <input type="hidden" name="csrf_token" id="csrf-token" value="{{ csrf }}">
     <input type="hidden" name="description_manual" id="description-manual" value="{% if post.description_manual %}true{% else %}false{% endif %}">
-    <textarea hidden name="content_html" id="content-html">{{ post.content_html }}</textarea>
     <div class="editor-mobile-tabs" role="tablist" aria-label="편집 화면">
       <button id="write-tab" class="editor-tab is-current" type="button" role="tab" aria-selected="true" aria-controls="write-panel">작성</button>
       <button id="preview-tab" class="editor-tab" type="button" role="tab" aria-selected="false" aria-controls="preview-panel">미리보기</button>

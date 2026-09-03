@@ -51,16 +51,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         config.admin_password_hash.clone(),
     )?;
 
-    let backfilled_posts = post_service.backfill_rendered_html().await?;
-    let backfilled_about = about_service.backfill_rendered_html().await?;
-    if backfilled_posts > 0 || backfilled_about {
-        tracing::info!(
-            posts = backfilled_posts,
-            about = backfilled_about,
-            "rendered HTML backfilled"
-        );
-    }
-
     let cookie_key = Key::derive_from(config.session_secret.as_bytes());
     let state = AppState {
         pool,

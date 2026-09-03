@@ -3,6 +3,7 @@ import taskLists from "https://cdn.jsdelivr.net/npm/markdown-it-task-lists@2.1.1
 import footnote from "https://cdn.jsdelivr.net/npm/markdown-it-footnote@4.0.0/+esm";
 import DOMPurify from "https://cdn.jsdelivr.net/npm/dompurify@3.4.14/+esm";
 import hljs from "https://cdn.jsdelivr.net/npm/highlight.js@11.12.0/lib/common/+esm";
+import { renderMermaid } from "./mermaid.js";
 
 const form = document.querySelector("#editor-form");
 const upload = document.querySelector("#image-upload");
@@ -19,7 +20,6 @@ const previewTab = document.querySelector("#preview-tab");
 const previewBody = document.querySelector("#preview-body");
 const previewTitle = document.querySelector("#preview-title");
 const csrfToken = document.querySelector("#csrf-token");
-const contentHtml = document.querySelector("#content-html");
 const writePane = document.querySelector("#write-panel");
 const operationDialog = document.querySelector("#operation-dialog");
 const operationTitle = document.querySelector("#operation-title");
@@ -217,25 +217,24 @@ function showPreviewMessage(message, className = "preview-empty") {
 }
 
 function requestPreview() {
-  if (!previewBody || !editor || !contentHtml) return;
+  if (!previewBody || !editor) return;
   window.clearTimeout(previewTimer);
   const markdown = editor.value;
   if (markdown === lastPreviewMarkdown) return;
 
   if (!markdown.trim()) {
     lastPreviewMarkdown = markdown;
-    contentHtml.value = "";
     showPreviewMessage("본문을 입력하면 여기에 미리보기가 표시됩니다.");
     return;
   }
 
   const html = renderMarkdown(markdown);
   lastPreviewMarkdown = markdown;
-  contentHtml.value = html;
   previewBody.innerHTML = html;
   window.requestAnimationFrame(() => {
+    void renderMermaid(previewBody);
     window.dispatchEvent(new CustomEvent("wlog:markdown-rendered", {
-      detail: { root: previewBody },
+      detail: { root: previewBody, mermaidHandled: true },
     }));
   });
 }
@@ -384,15 +383,6 @@ async function autosave() {
     });
     if (!response.ok) throw new Error(await response.text());
     const result = await response.json();
-    if (contentHtml && contentHtml.value !== result.content_html) {
-      contentHtml.value = result.content_html;
-      if (previewBody) {
-        previewBody.innerHTML = result.content_html;
-        window.dispatchEvent(new CustomEvent("wlog:markdown-rendered", {
-          detail: { root: previewBody },
-        }));
-      }
-    }
     dirty = changeVersion !== savingVersion;
     if (dirty) {
       setSaveStatus("새 변경사항 저장 대기", "dirty");
