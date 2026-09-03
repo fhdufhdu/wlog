@@ -743,7 +743,9 @@ input:-webkit-autofill:focus {
 .editor-actions .button-primary, .editor-actions .button-secondary { min-height: 48px; }
 
 .operation-dialog {
-  width: min(calc(100% - 32px), 420px);
+  width: min(calc(100% - 32px), 500px);
+  max-height: calc(100dvh - 32px);
+  overflow: auto;
   border: 2px solid var(--ink);
   border-radius: 0;
   padding: 24px;
@@ -753,6 +755,8 @@ input:-webkit-autofill:focus {
 .operation-dialog::backdrop { background: rgb(15 20 26 / 56%); }
 .operation-dialog h2 { margin: 18px 0 5px; font: 700 20px/1.4 var(--serif); letter-spacing: -.02em; }
 .operation-dialog p { margin: 0; color: var(--muted); font-size: 13px; overflow-wrap: anywhere; }
+.operation-dialog[data-state="result"] h2 { margin-top: 0; }
+.operation-dialog[data-state="result"] .operation-progress { display: none; }
 .operation-progress { height: 4px; overflow: hidden; background: var(--rule); }
 .operation-progress span {
   display: block;
@@ -762,6 +766,27 @@ input:-webkit-autofill:focus {
   background: var(--link);
   animation: operation-progress 1.15s cubic-bezier(.65, 0, .35, 1) infinite;
 }
+.operation-results {
+  display: grid;
+  gap: 0;
+  max-height: min(42vh, 360px);
+  margin: 20px 0 0;
+  padding: 0;
+  overflow-y: auto;
+  border-top: 1px solid var(--strong-rule);
+  border-bottom: 1px solid var(--strong-rule);
+  list-style: none;
+}
+.operation-results[hidden], .operation-close[hidden] { display: none; }
+.operation-results li { padding: 11px 0; border-bottom: 1px solid var(--rule); }
+.operation-results li:last-child { border-bottom: 0; }
+.operation-results li div { display: flex; min-width: 0; align-items: baseline; justify-content: space-between; gap: 16px; }
+.operation-results strong { min-width: 0; overflow-wrap: anywhere; font-size: 13px; }
+.operation-results span { flex: 0 0 auto; color: var(--link); font-size: 12px; font-weight: 800; }
+.operation-results li[data-state="error"] span,
+.operation-results li[data-state="error"] p { color: var(--signal); }
+.operation-results p { margin-top: 4px; font-size: 12px; }
+.operation-close { display: block; min-width: 88px; margin: 20px 0 0 auto; }
 
 @keyframes operation-progress {
   50% { transform: translateX(110%); }

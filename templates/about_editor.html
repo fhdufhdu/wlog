@@ -39,7 +39,7 @@
               <button type="button" data-markdown="math">수식</button>
               <button type="button" data-markdown="mermaid">Mermaid</button>
             </div>
-            <label class="upload-control">사진<input id="image-upload" type="file" accept="image/jpeg,image/png,image/gif,image/webp,image/svg+xml" multiple></label>
+            <label class="upload-control">사진<input id="image-upload" type="file" accept="image/jpeg,image/png,image/gif,image/webp,image/svg+xml" data-max-upload-bytes="{{ max_upload_bytes }}" multiple></label>
           </div>
 
           <label class="sr-only" for="content_markdown">소개 본문 · Markdown</label>

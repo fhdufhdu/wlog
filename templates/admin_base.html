@@ -20,6 +20,8 @@
     <div class="operation-progress" aria-hidden="true"><span></span></div>
     <h2 id="operation-title">처리 중입니다</h2>
     <p id="operation-detail" aria-live="polite">잠시만 기다려주세요.</p>
+    <ul id="operation-results" class="operation-results" aria-label="파일별 업로드 결과" hidden></ul>
+    <button id="operation-close" class="button-primary operation-close" type="button" hidden>확인</button>
   </dialog>
   {% block admin_scripts %}{% endblock %}
 </body>

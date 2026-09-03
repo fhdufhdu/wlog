@@ -150,6 +150,7 @@ struct EditorTemplate {
     action: String,
     post: EditorPost,
     topics: Vec<TopicOption>,
+    max_upload_bytes: usize,
 }
 #[derive(Template)]
 #[template(path = "about_editor.html")]
@@ -160,6 +161,7 @@ struct AboutEditorTemplate {
     title: String,
     content_markdown: String,
     content_html: String,
+    max_upload_bytes: usize,
 }
 
 pub async fn index(
@@ -422,6 +424,7 @@ pub async fn about_editor(
         title: page.title,
         content_markdown: page.content_markdown,
         content_html: page.content_html,
+        max_upload_bytes: state.config.max_upload_bytes,
     })?
     .into_response())
 }
@@ -809,6 +812,7 @@ async fn render_editor(
         action: format!("/admin/temp-posts/{}/publish", post.id),
         post: editor(post),
         topics,
+        max_upload_bytes: state.config.max_upload_bytes,
     })?
     .into_response())
 }

@@ -24,6 +24,8 @@ const writePane = document.querySelector("#write-panel");
 const operationDialog = document.querySelector("#operation-dialog");
 const operationTitle = document.querySelector("#operation-title");
 const operationDetail = document.querySelector("#operation-detail");
+const operationResults = document.querySelector("#operation-results");
+const operationClose = document.querySelector("#operation-close");
 
 let dirty = false;
 let changeVersion = 0;
@@ -37,11 +39,18 @@ let submitting = false;
 const autosaveUrl = form?.dataset.autosaveUrl;
 const previewDelay = 120;
 const editorHeightBuffer = 48;
+const maxUploadBytes = Number(upload?.dataset.maxUploadBytes || 0);
 
 function showOperation(titleText, detailText) {
   if (!operationDialog) return;
+  operationDialog.dataset.state = "loading";
   if (operationTitle) operationTitle.textContent = titleText;
   if (operationDetail) operationDetail.textContent = detailText;
+  if (operationResults) {
+    operationResults.hidden = true;
+    operationResults.replaceChildren();
+  }
+  if (operationClose) operationClose.hidden = true;
   document.body.setAttribute("aria-busy", "true");
   if (!operationDialog.open) operationDialog.showModal();
 }
@@ -53,7 +62,9 @@ function hideOperation() {
 
 operationDialog?.addEventListener("cancel", (event) => {
   event.preventDefault();
+  if (operationDialog.dataset.state === "result") hideOperation();
 });
+operationClose?.addEventListener("click", hideOperation);
 
 function mathPlugin(md) {
   md.inline.ruler.after("escape", "math_inline", (state, silent) => {
@@ -443,8 +454,42 @@ async function uploadImage(file) {
     body: data,
     credentials: "same-origin",
   });
-  if (!response.ok) throw new Error(await response.text());
+  if (!response.ok) throw new Error(await uploadErrorMessage(response));
   return response.json();
+}
+
+async function uploadErrorMessage(response) {
+  if (response.status === 413) {
+    const limit = maxUploadBytes ? ` 최대 ${formatBytes(maxUploadBytes)}입니다.` : "";
+    return `파일 크기가 서버의 업로드 제한을 초과했습니다.${limit}`;
+  }
+  if (response.status === 401) return "로그인 세션이 만료되었습니다. 다시 로그인해주세요.";
+  if (response.status === 403) return "이 파일을 업로드할 권한이 없습니다.";
+  if (response.status >= 500) return "서버에서 이미지를 처리하지 못했습니다. 잠시 후 다시 시도해주세요.";
+  const contentType = response.headers.get("content-type") || "";
+  const message = contentType.startsWith("text/plain") ? (await response.text()).trim() : "";
+  return message || `업로드 요청에 실패했습니다. (${response.status})`;
+}
+
+function acceptsImage(file) {
+  const acceptedTypes = new Set(["image/jpeg", "image/png", "image/gif", "image/webp", "image/svg+xml"]);
+  return acceptedTypes.has(file.type) || /\.(?:jpe?g|png|gif|webp|svg)$/i.test(file.name);
+}
+
+function formatBytes(bytes) {
+  if (bytes >= 1024 * 1024) {
+    const value = bytes / (1024 * 1024);
+    return `${Number.isInteger(value) ? value : value.toFixed(1)}MB`;
+  }
+  return `${Math.ceil(bytes / 1024)}KB`;
+}
+
+function updateUploadProgress(completed, total) {
+  if (uploadStatus) uploadStatus.textContent = `사진 ${completed}/${total}장을 처리했습니다…`;
+  showOperation(
+    "사진을 올리고 있습니다",
+    `${completed}/${total}장 처리됨 · 이미지 크기와 형식을 최적화하고 있습니다.`,
+  );
 }
 
 async function uploadImageFiles(files, concurrency = 3) {
@@ -456,17 +501,29 @@ async function uploadImageFiles(files, concurrency = 3) {
     while (cursor < files.length) {
       const index = cursor;
       cursor += 1;
+      const file = files[index];
+      if (maxUploadBytes && file.size > maxUploadBytes) {
+        results[index] = {
+          file,
+          error: new Error(`파일 크기 ${formatBytes(file.size)} · 최대 ${formatBytes(maxUploadBytes)}까지 업로드할 수 있습니다.`),
+        };
+        completed += 1;
+        updateUploadProgress(completed, files.length);
+        continue;
+      }
+      if (!acceptsImage(file)) {
+        results[index] = { file, error: new Error("지원하지 않는 파일 형식입니다.") };
+        completed += 1;
+        updateUploadProgress(completed, files.length);
+        continue;
+      }
       try {
-        results[index] = { result: await uploadImage(files[index]) };
+        results[index] = { file, result: await uploadImage(file) };
       } catch (error) {
-        results[index] = { error };
+        results[index] = { file, error };
       }
       completed += 1;
-      if (uploadStatus) uploadStatus.textContent = `사진 ${completed}/${files.length}장을 처리했습니다…`;
-      showOperation(
-        "사진을 올리고 있습니다",
-        `${completed}/${files.length}장 처리됨 · 이미지 크기와 형식을 최적화하고 있습니다.`,
-      );
+      updateUploadProgress(completed, files.length);
     }
   }
 
@@ -475,11 +532,46 @@ async function uploadImageFiles(files, concurrency = 3) {
   return results;
 }
 
+function showUploadResults(results) {
+  if (!operationDialog || !operationResults || !operationClose) {
+    hideOperation();
+    return;
+  }
+  const successCount = results.filter((entry) => entry.result).length;
+  const failureCount = results.length - successCount;
+  operationDialog.dataset.state = "result";
+  document.body.removeAttribute("aria-busy");
+  operationTitle.textContent = failureCount ? "사진 업로드를 확인해주세요" : "사진 업로드가 끝났습니다";
+  operationDetail.textContent = failureCount
+    ? `${successCount}장 성공 · ${failureCount}장 실패`
+    : `${successCount}장을 본문에 추가했습니다.`;
+  const items = results.map((entry) => {
+    const item = document.createElement("li");
+    item.dataset.state = entry.result ? "success" : "error";
+    const row = document.createElement("div");
+    const name = document.createElement("strong");
+    name.textContent = entry.file?.name || "이름 없는 파일";
+    const state = document.createElement("span");
+    state.textContent = entry.result ? "성공" : "실패";
+    row.append(name, state);
+    item.append(row);
+    if (entry.error) {
+      const reason = document.createElement("p");
+      reason.textContent = entry.error.message || "알 수 없는 오류가 발생했습니다.";
+      item.append(reason);
+    }
+    return item;
+  });
+  operationResults.replaceChildren(...items);
+  operationResults.hidden = false;
+  operationClose.hidden = false;
+  operationClose.focus();
+}
+
 async function handleImageFiles(fileList) {
   if (!editor || !csrfToken) return;
-  const files = [...fileList].filter((file) => file.type.startsWith("image/"));
+  const files = [...fileList];
   if (!files.length) {
-    if (uploadStatus) uploadStatus.textContent = "JPEG, PNG, GIF, WebP, SVG 파일만 추가할 수 있습니다.";
     return;
   }
 
@@ -488,21 +580,18 @@ async function handleImageFiles(fileList) {
     "사진을 올리고 있습니다",
     `0/${files.length}장 처리됨 · 이미지 크기와 형식을 최적화하고 있습니다.`,
   );
-  try {
-    const results = await uploadImageFiles(files);
-    const uploaded = results.flatMap((entry) => entry.result ? [entry.result] : []);
-    const failed = results.length - uploaded.length;
-    if (uploaded.length) {
-      replaceEditorSelection(`\n${uploaded.map((result) => result.markdown).join("\n")}\n`);
-    }
-    if (uploadStatus) {
-      uploadStatus.textContent = failed
-        ? `사진 ${uploaded.length}장은 추가했고 ${failed}장은 올리지 못했습니다.`
-        : `사진 ${uploaded.length}장을 본문에 추가했습니다. 대체 텍스트를 수정해주세요.`;
-    }
-  } finally {
-    hideOperation();
+  const results = await uploadImageFiles(files);
+  const uploaded = results.flatMap((entry) => entry.result ? [entry.result] : []);
+  const failed = results.length - uploaded.length;
+  if (uploaded.length) {
+    replaceEditorSelection(`\n${uploaded.map((result) => result.markdown).join("\n")}\n`);
   }
+  if (uploadStatus) {
+    uploadStatus.textContent = failed
+      ? `사진 ${uploaded.length}장은 추가했고 ${failed}장은 올리지 못했습니다.`
+      : `사진 ${uploaded.length}장을 본문에 추가했습니다. 대체 텍스트를 수정해주세요.`;
+  }
+  showUploadResults(results);
 }
 
 upload?.addEventListener("change", async () => {
