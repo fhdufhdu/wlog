@@ -8,7 +8,11 @@
       <p><time datetime="{{ published_iso }}">{{ post.date }}</time><span>마지막 수정 <time datetime="{{ updated_iso }}">{{ updated_iso }}</time></span></p>
     </header>
     <div class="prose markdown-body">{{ body_html|safe }}</div>
-    <nav class="article-nav" aria-label="글 이동"><a href="/">글 목록</a></nav>
+    <nav class="article-nav" aria-label="글 이동">
+      {% if previous.exists %}<a class="article-nav-post article-nav-previous" href="/posts/{{ previous.slug }}"><span>이전 글</span><strong>{{ previous.title }}</strong></a>{% endif %}
+      {% if next.exists %}<a class="article-nav-post article-nav-next" href="/posts/{{ next.slug }}"><span>다음 글</span><strong>{{ next.title }}</strong></a>{% endif %}
+      <a class="article-nav-list" href="/">글 목록</a>
+    </nav>
   </article>
 </main>
 {% endblock %}

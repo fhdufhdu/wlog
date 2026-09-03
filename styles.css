@@ -112,6 +112,8 @@ body::before {
   left: 0;
   z-index: 20;
   height: 4px;
+  transform: scaleX(var(--scroll-progress, 1));
+  transform-origin: left center;
   background: var(--link);
   content: "";
 }
@@ -430,7 +432,13 @@ input:-webkit-autofill:focus {
 .prose h2 { margin: 2em 0 .65em; padding-bottom: 6px; border-bottom: 1px solid var(--rule); font-size: 21px; line-height: 1.45; }
 .prose blockquote { margin: 1.7em 0; padding: 16px 18px; border: 1px solid var(--rule); background: var(--surface); color: var(--ink); font-style: italic; }
 
-.article-nav { display: flex; justify-content: space-between; gap: 20px; margin-top: 44px; padding-top: 16px; border-top: 2px solid var(--ink); }
+.article-nav { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px 32px; margin-top: 52px; padding-top: 20px; border-top: 2px solid var(--ink); }
+.article-nav-post { display: grid; min-width: 0; min-height: 64px; align-content: start; gap: 4px; text-decoration: none; }
+.article-nav-post span { color: var(--muted); font-size: 11px; font-weight: 700; }
+.article-nav-post strong { overflow-wrap: anywhere; color: var(--ink); font: 600 16px/1.5 var(--serif); text-decoration: underline; text-decoration-color: transparent; text-underline-offset: .25em; }
+.article-nav-post:hover strong { color: var(--link); text-decoration-color: currentColor; }
+.article-nav-next { grid-column: 2; justify-items: end; text-align: right; }
+.article-nav-list { grid-column: 1 / -1; justify-self: center; min-height: 44px; padding: 9px 4px; font-size: 13px; font-weight: 700; }
 .field { margin-bottom: 17px; }
 .field:last-child { margin-bottom: 0; }
 
@@ -703,9 +711,9 @@ input:-webkit-autofill:focus {
   padding: 24px 0;
   background: transparent;
   font: 14px/1.78 ui-monospace, SFMono-Regular, Consolas, monospace;
-  resize: vertical;
+  overflow-y: hidden;
+  resize: none;
 }
-.markdown-editor[data-autogrow="true"] { overflow-y: hidden; resize: none; }
 .markdown-editor:focus { border: 0; outline: 0; box-shadow: none; }
 .editor-preview-document { width: min(100%, 70ch); margin: 0 auto; padding: 46px clamp(28px, 4vw, 58px) 100px; }
 .editor-preview-title { margin: 0 0 18px; overflow-wrap: anywhere; font: 700 clamp(29px, 3vw, 40px)/1.38 var(--serif); letter-spacing: -.035em; }
@@ -783,6 +791,9 @@ input:-webkit-autofill:focus {
 }
 
 @media (max-width: 520px) {
+  .article-nav { grid-template-columns: minmax(0, 1fr); gap: 12px; }
+  .article-nav-next { grid-column: 1; justify-items: start; text-align: left; }
+  .article-nav-list { grid-column: 1; margin-top: 4px; }
   .editor-body .admin-header nav a:last-of-type { display: none; }
   .editor-actions { grid-template-columns: auto minmax(0, 1fr); }
   .editor-save-status { grid-column: 1 / -1; grid-row: 1; min-height: 18px; }

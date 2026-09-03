@@ -27,14 +27,14 @@ let lastPreviewMarkdown = null;
 let editorResizeFrame = null;
 const autosaveUrl = form?.dataset.autosaveUrl;
 const previewDelay = 120;
+const editorHeightBuffer = 48;
 
 function resizeEditor() {
   if (!editor) return;
   window.cancelAnimationFrame(editorResizeFrame);
   editorResizeFrame = window.requestAnimationFrame(() => {
-    editor.dataset.autogrow = "true";
     editor.style.height = "0px";
-    editor.style.height = `${editor.scrollHeight}px`;
+    editor.style.height = `${editor.scrollHeight + editorHeightBuffer}px`;
   });
 }
 

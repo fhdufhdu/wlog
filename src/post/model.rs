@@ -16,6 +16,12 @@ pub struct Post {
 }
 
 #[derive(Clone, Debug, sqlx::FromRow)]
+pub struct PostLink {
+    pub title: String,
+    pub slug: String,
+}
+
+#[derive(Clone, Debug, sqlx::FromRow)]
 pub struct TempPost {
     pub id: Uuid,
     pub post_id: Option<Uuid>,

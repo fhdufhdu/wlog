@@ -1,5 +1,5 @@
-use super::model::{Post, TempPost};
-use chrono::Utc;
+use super::model::{Post, PostLink, TempPost};
+use chrono::{DateTime, Utc};
 use sqlx::PgPool;
 use uuid::Uuid;
 
@@ -19,7 +19,7 @@ impl PostRepository {
                     p.topic_id, t.name AS topic_name, p.published_at, p.created_at, p.updated_at
              FROM posts p JOIN topics t ON t.id = p.topic_id
              WHERE ($1::UUID IS NULL OR p.topic_id = $1)
-             ORDER BY p.published_at DESC LIMIT 100",
+             ORDER BY p.published_at DESC, p.id DESC LIMIT 100",
         )
         .bind(topic_id)
         .fetch_all(&self.pool)
@@ -30,7 +30,8 @@ impl PostRepository {
         sqlx::query_as::<_, Post>(
             "SELECT p.id, p.title, p.slug, p.description, p.content_markdown,
                     p.topic_id, t.name AS topic_name, p.published_at, p.created_at, p.updated_at
-             FROM posts p JOIN topics t ON t.id = p.topic_id ORDER BY p.published_at DESC",
+             FROM posts p JOIN topics t ON t.id = p.topic_id
+             ORDER BY p.published_at DESC, p.id DESC",
         )
         .fetch_all(&self.pool)
         .await
@@ -64,6 +65,38 @@ impl PostRepository {
                     p.topic_id, t.name AS topic_name, p.published_at, p.created_at, p.updated_at
              FROM posts p JOIN topics t ON t.id = p.topic_id WHERE p.id = $1",
         )
+        .bind(id)
+        .fetch_optional(&self.pool)
+        .await
+    }
+
+    pub async fn find_previous(
+        &self,
+        id: Uuid,
+        published_at: DateTime<Utc>,
+    ) -> Result<Option<PostLink>, sqlx::Error> {
+        sqlx::query_as::<_, PostLink>(
+            "SELECT title, slug FROM posts
+             WHERE (published_at, id) < ($1, $2)
+             ORDER BY published_at DESC, id DESC LIMIT 1",
+        )
+        .bind(published_at)
+        .bind(id)
+        .fetch_optional(&self.pool)
+        .await
+    }
+
+    pub async fn find_next(
+        &self,
+        id: Uuid,
+        published_at: DateTime<Utc>,
+    ) -> Result<Option<PostLink>, sqlx::Error> {
+        sqlx::query_as::<_, PostLink>(
+            "SELECT title, slug FROM posts
+             WHERE (published_at, id) > ($1, $2)
+             ORDER BY published_at ASC, id ASC LIMIT 1",
+        )
+        .bind(published_at)
         .bind(id)
         .fetch_optional(&self.pool)
         .await

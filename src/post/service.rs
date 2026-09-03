@@ -1,6 +1,6 @@
 use super::{
     dto::PostForm,
-    model::{Post, TempPost},
+    model::{Post, PostLink, TempPost},
     repository::PostRepository,
 };
 use crate::{error::AppError, markdown};
@@ -30,6 +30,16 @@ impl PostService {
             .find_public_slug(slug)
             .await?
             .ok_or(AppError::NotFound)
+    }
+    pub async fn adjacent(
+        &self,
+        post: &Post,
+    ) -> Result<(Option<PostLink>, Option<PostLink>), AppError> {
+        let (previous, next) = tokio::try_join!(
+            self.repository.find_previous(post.id, post.published_at),
+            self.repository.find_next(post.id, post.published_at),
+        )?;
+        Ok((previous, next))
     }
     pub async fn by_id(&self, id: Uuid) -> Result<Post, AppError> {
         self.repository.find_id(id).await?.ok_or(AppError::NotFound)

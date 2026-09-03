@@ -1,6 +1,43 @@
 const THEME_KEY = "wlog-theme";
 const root = document.documentElement;
 const systemTheme = window.matchMedia("(prefers-color-scheme: dark)");
+let scrollProgressFrame = null;
+let pageResizeObserver = null;
+let scrollProgressRoot = null;
+
+function updateScrollProgress() {
+  scrollProgressFrame = null;
+  const scrollRoot = scrollProgressRoot || document.scrollingElement || document.documentElement;
+  const scrollableHeight = scrollRoot.scrollHeight - scrollRoot.clientHeight;
+  const progress = scrollableHeight > 0
+    ? Math.min(1, Math.max(0, scrollRoot.scrollTop / scrollableHeight))
+    : 1;
+  root.style.setProperty("--scroll-progress", String(progress));
+}
+
+function scheduleScrollProgress() {
+  if (scrollProgressFrame !== null) return;
+  scrollProgressFrame = window.requestAnimationFrame(updateScrollProgress);
+}
+
+function initializeScrollProgress() {
+  const editorPanes = [...document.querySelectorAll(".editor-pane")];
+  if (editorPanes.length) scrollProgressRoot = editorPanes[0];
+  editorPanes.forEach((pane) => {
+    pane.addEventListener("scroll", () => {
+      scrollProgressRoot = pane;
+      scheduleScrollProgress();
+    }, { passive: true });
+  });
+  scheduleScrollProgress();
+  if ("ResizeObserver" in window && document.body) {
+    pageResizeObserver = new ResizeObserver(scheduleScrollProgress);
+    pageResizeObserver.observe(document.body);
+    document.querySelectorAll(".editor-pane-inner, .editor-preview-document").forEach((element) => {
+      pageResizeObserver.observe(element);
+    });
+  }
+}
 
 function storedTheme() {
   try {
@@ -59,8 +96,16 @@ systemTheme.addEventListener("change", () => {
   if (!root.dataset.theme) updateThemeUi(true);
 });
 
+window.addEventListener("scroll", scheduleScrollProgress, { passive: true });
+window.addEventListener("resize", scheduleScrollProgress, { passive: true });
+window.addEventListener("load", scheduleScrollProgress);
+
 if (document.readyState === "loading") {
-  document.addEventListener("DOMContentLoaded", initializeThemeControls);
+  document.addEventListener("DOMContentLoaded", () => {
+    initializeThemeControls();
+    initializeScrollProgress();
+  });
 } else {
   initializeThemeControls();
+  initializeScrollProgress();
 }

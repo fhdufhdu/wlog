@@ -45,6 +45,12 @@ struct PostCard {
     topic: String,
     date: String,
 }
+#[derive(Clone, Default)]
+struct PostNavigation {
+    title: String,
+    slug: String,
+    exists: bool,
+}
 #[derive(Clone)]
 struct AdminPost {
     title: String,
@@ -98,6 +104,8 @@ struct PostTemplate {
     body_html: String,
     published_iso: String,
     updated_iso: String,
+    previous: PostNavigation,
+    next: PostNavigation,
 }
 #[derive(Template)]
 #[template(path = "about.html")]
@@ -206,6 +214,7 @@ pub async fn show_post(
     Path(slug): Path<String>,
 ) -> Result<Html<String>, AppError> {
     let post = state.post_service.public_by_slug(&slug).await?;
+    let (previous, next) = state.post_service.adjacent(&post).await?;
     let canonical = format!("{}/posts/{}", state.config.public_base_url, post.slug);
     let published_iso = post.published_at.to_rfc3339_opts(SecondsFormat::Secs, true);
     let updated_iso = post.updated_at.to_rfc3339_opts(SecondsFormat::Secs, true);
@@ -229,6 +238,8 @@ pub async fn show_post(
         body_html,
         published_iso,
         updated_iso,
+        previous: navigation(previous),
+        next: navigation(next),
     })
 }
 
@@ -722,6 +733,13 @@ fn card(post: Post) -> PostCard {
         date: post.published_at.format("%Y. %-m. %-d.").to_string(),
     }
 }
+fn navigation(post: Option<crate::post::model::PostLink>) -> PostNavigation {
+    post.map_or_else(PostNavigation::default, |post| PostNavigation {
+        title: post.title,
+        slug: post.slug,
+        exists: true,
+    })
+}
 fn editor(post: crate::post::model::TempPost) -> EditorPost {
     EditorPost {
         id: post.id.to_string(),
@@ -782,6 +800,20 @@ fn display_title(title: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn maps_optional_post_navigation() {
+        let empty = navigation(None);
+        assert!(!empty.exists);
+
+        let linked = navigation(Some(crate::post::model::PostLink {
+            title: "다음 글".into(),
+            slug: "next-post".into(),
+        }));
+        assert!(linked.exists);
+        assert_eq!(linked.title, "다음 글");
+        assert_eq!(linked.slug, "next-post");
+    }
 
     #[test]
     fn json_ld_filter_cannot_close_script_element() {
