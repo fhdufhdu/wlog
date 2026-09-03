@@ -35,10 +35,10 @@ let previewTimer = null;
 let isComposing = false;
 let lastPreviewMarkdown = null;
 let editorResizeFrame = null;
+let editorScrollFrame = null;
 let submitting = false;
 const autosaveUrl = form?.dataset.autosaveUrl;
 const previewDelay = 120;
-const editorHeightBuffer = 48;
 const maxUploadBytes = Number(upload?.dataset.maxUploadBytes || 0);
 
 function showOperation(titleText, detailText) {
@@ -168,11 +168,34 @@ function renderMarkdown(source) {
 }
 
 function resizeEditor() {
-  if (!editor) return;
+  if (!editor || !writePane) return;
   window.cancelAnimationFrame(editorResizeFrame);
+  window.cancelAnimationFrame(editorScrollFrame);
   editorResizeFrame = window.requestAnimationFrame(() => {
+    if (!editor.getClientRects().length) return;
+    const paneScrollTop = writePane.scrollTop;
+    const internalScroll = editor.scrollTop;
+    const keepCaretVisible = document.activeElement === editor;
+    const caretAtEnd = keepCaretVisible && editor.selectionEnd === editor.value.length;
+
     editor.style.height = "0px";
-    editor.style.height = `${editor.scrollHeight + editorHeightBuffer}px`;
+    const contentHeight = editor.scrollHeight;
+    const trailingSpace = Math.max(120, Math.min(window.innerHeight * 0.2, 200));
+    editor.style.height = `${contentHeight + trailingSpace}px`;
+    editor.scrollTop = 0;
+    writePane.scrollTop = paneScrollTop + internalScroll;
+
+    if (!keepCaretVisible) return;
+    editorScrollFrame = window.requestAnimationFrame(() => {
+      if (!caretAtEnd) return;
+
+      const paneRect = writePane.getBoundingClientRect();
+      const editorRect = editor.getBoundingClientRect();
+      const comfortSpace = Math.min(160, writePane.clientHeight * 0.24);
+      const caretBottom = editorRect.top + contentHeight;
+      const hiddenByComfortZone = caretBottom - (paneRect.bottom - comfortSpace);
+      if (hiddenByComfortZone > 0) writePane.scrollTop += hiddenByComfortZone;
+    });
   });
 }
 
@@ -256,6 +279,7 @@ function selectEditorTab(tab, focusTab = false) {
   previewTab?.setAttribute("tabindex", preview ? "0" : "-1");
   if (focusTab) (preview ? previewTab : writeTab)?.focus();
   if (preview) requestPreview();
+  else resizeEditor();
 }
 
 if (title && slug) {
