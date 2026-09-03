@@ -43,9 +43,9 @@
                 <input id="slug" name="slug" value="{{ post.slug }}" maxlength="160" placeholder="rust-axum-start" required>
               </div>
               <div class="field editor-seo-field">
-                <label for="description">SEO 설명</label>
+                <label for="description">요약</label>
                 <textarea id="description" name="description" rows="3" maxlength="200" placeholder="본문 앞 80자를 자동으로 채웁니다.">{{ post.description }}</textarea>
-                <small><span id="description-count">{{ post.description.chars().count() }}</span>/200자 · 자동 생성 후 직접 수정할 수 있습니다.</small>
+                <small><span id="description-count">{{ post.description.chars().count() }}</span>/200자 · 글 목록과 검색·공유 미리보기에 사용됩니다.</small>
               </div>
             </div>
           </details>
@@ -77,7 +77,6 @@
       <section id="preview-panel" class="editor-pane editor-preview-pane" role="tabpanel" aria-labelledby="preview-tab" aria-live="polite">
         <article class="editor-preview-document">
           <h1 id="preview-title" class="editor-preview-title">{% if post.title.is_empty() %}제목을 입력하세요{% else %}{{ post.title }}{% endif %}</h1>
-          <p id="preview-description" class="editor-preview-description">{{ post.description }}</p>
           <div id="preview-body" class="markdown-body prose">
             <p class="preview-empty">본문을 입력하면 여기에 미리보기가 표시됩니다.</p>
           </div>

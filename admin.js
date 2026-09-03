@@ -12,7 +12,6 @@ const writeTab = document.querySelector("#write-tab");
 const previewTab = document.querySelector("#preview-tab");
 const previewBody = document.querySelector("#preview-body");
 const previewTitle = document.querySelector("#preview-title");
-const previewDescription = document.querySelector("#preview-description");
 const csrfToken = document.querySelector("#csrf-token");
 const writePane = document.querySelector("#write-panel");
 
@@ -50,10 +49,6 @@ function updateDescription() {
 
 function updatePreviewMeta() {
   if (previewTitle) previewTitle.textContent = title?.value.trim() || "제목을 입력하세요";
-  if (previewDescription) {
-    previewDescription.textContent = description?.value.trim() || "";
-    previewDescription.hidden = !description?.value.trim();
-  }
 }
 
 function markDirty() {
@@ -142,10 +137,9 @@ if (title && slug) {
 }
 
 description?.addEventListener("input", () => {
-  descriptionEdited = Boolean(description.value.trim());
-  descriptionManual.value = descriptionEdited ? "true" : "false";
+  descriptionEdited = true;
+  descriptionManual.value = "true";
   if (descriptionCount) descriptionCount.textContent = Array.from(description.value).length;
-  if (!descriptionEdited) updateDescription();
 });
 
 editor?.addEventListener("compositionstart", () => { isComposing = true; });

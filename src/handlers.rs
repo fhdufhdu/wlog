@@ -41,7 +41,7 @@ struct Seo {
 struct PostCard {
     title: String,
     slug: String,
-    description: String,
+    summary: String,
     topic: String,
     date: String,
 }
@@ -717,7 +717,7 @@ fn card(post: Post) -> PostCard {
     PostCard {
         title: post.title,
         slug: post.slug,
-        description: post.description,
+        summary: post.description,
         topic: post.topic_name,
         date: post.published_at.format("%Y. %-m. %-d.").to_string(),
     }

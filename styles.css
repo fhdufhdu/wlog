@@ -708,8 +708,6 @@ input:-webkit-autofill:focus {
 .markdown-editor:focus { border: 0; outline: 0; box-shadow: none; }
 .editor-preview-document { width: min(100%, 70ch); margin: 0 auto; padding: 46px clamp(28px, 4vw, 58px) 100px; }
 .editor-preview-title { margin: 0 0 18px; overflow-wrap: anywhere; font: 700 clamp(29px, 3vw, 40px)/1.38 var(--serif); letter-spacing: -.035em; }
-.editor-preview-description { margin: 0 0 38px; color: var(--muted); font: 16px/1.75 var(--serif); overflow-wrap: anywhere; }
-.editor-preview-description[hidden] { display: none; }
 .editor-preview-document .markdown-body { max-width: none; overflow-wrap: anywhere; }
 #preview-body[aria-busy="true"] { opacity: .62; }
 .preview-empty { margin-top: 32px; color: var(--muted); font-family: var(--ui); font-size: 14px; }

@@ -13,7 +13,7 @@
       {% for post in posts %}<li class="post-item">
         <a class="post-link" href="/posts/{{ post.slug }}">{{ post.title }}</a>
         <div class="post-meta"><time>{{ post.date }}</time><span class="post-topic">{{ post.topic }}</span></div>
-        <p>{{ post.description }}</p>
+        <p>{{ post.summary }}</p>
       </li>{% endfor %}
     </ol>{% endif %}
   </main>

@@ -130,7 +130,7 @@ fn validate(form: PostForm, publishing: bool) -> Result<CleanPost, AppError> {
     let content_markdown = form.content_markdown.trim().to_owned();
     let slug = slug::slugify(form.slug.trim());
     let description_manual = form.description_manual;
-    let description = if !description_manual || form.description.trim().is_empty() {
+    let description = if !description_manual {
         markdown::excerpt(&content_markdown, 80)
     } else {
         form.description.trim().to_owned()
@@ -147,7 +147,7 @@ fn validate(form: PostForm, publishing: bool) -> Result<CleanPost, AppError> {
     }
     if description.chars().count() > 200 || (publishing && description.is_empty()) {
         return Err(AppError::Validation(
-            "SEO 설명은 1–200자로 입력해주세요.".into(),
+            "요약은 1–200자로 입력해주세요.".into(),
         ));
     }
     if publishing && topic_id.is_none() {
@@ -201,6 +201,13 @@ mod tests {
 
         let manual = validate(form("직접 작성한 설명", true), true).unwrap();
         assert_eq!(manual.description, "직접 작성한 설명");
+    }
+
+    #[test]
+    fn preserves_an_intentionally_cleared_manual_summary() {
+        let draft = validate(form("", true), false).unwrap();
+        assert!(draft.description.is_empty());
+        assert!(validate(form("", true), true).is_err());
     }
 
     #[test]
