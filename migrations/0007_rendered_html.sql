@@ -1,8 +1,0 @@
-ALTER TABLE posts
-ADD COLUMN content_html TEXT NOT NULL DEFAULT '';
-
-ALTER TABLE temp_posts
-ADD COLUMN content_html TEXT NOT NULL DEFAULT '';
-
-ALTER TABLE about_page
-ADD COLUMN content_html TEXT NOT NULL DEFAULT '';

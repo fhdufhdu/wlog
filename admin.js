@@ -8,7 +8,6 @@ import { renderMermaid } from "./mermaid.js";
 const form = document.querySelector("#editor-form");
 const upload = document.querySelector("#image-upload");
 const editor = document.querySelector("#content_markdown");
-const uploadStatus = document.querySelector("#upload-status");
 const saveStatus = document.querySelector("#save-status");
 const title = document.querySelector("#title");
 const slug = document.querySelector("#slug");
@@ -180,8 +179,7 @@ function resizeEditor() {
 
     editor.style.height = "0px";
     const contentHeight = editor.scrollHeight;
-    const trailingSpace = Math.max(120, Math.min(window.innerHeight * 0.2, 200));
-    editor.style.height = `${contentHeight + trailingSpace}px`;
+    editor.style.height = `${contentHeight}px`;
     editor.scrollTop = 0;
     writePane.scrollTop = paneScrollTop + internalScroll;
 
@@ -499,7 +497,7 @@ function formatBytes(bytes) {
 }
 
 function updateUploadProgress(completed, total) {
-  if (uploadStatus) uploadStatus.textContent = `사진 ${completed}/${total}장을 처리했습니다…`;
+  setSaveStatus(`사진 ${completed}/${total}장을 처리했습니다…`, "saving");
   showOperation(
     "사진을 올리고 있습니다",
     `${completed}/${total}장 처리됨 · 이미지 크기와 형식을 최적화하고 있습니다.`,
@@ -589,7 +587,7 @@ async function handleImageFiles(fileList) {
     return;
   }
 
-  if (uploadStatus) uploadStatus.textContent = `사진 ${files.length}장을 올리는 중입니다…`;
+  setSaveStatus(`사진 ${files.length}장을 올리는 중입니다…`, "saving");
   showOperation(
     "사진을 올리고 있습니다",
     `0/${files.length}장 처리됨 · 이미지 크기와 형식을 최적화하고 있습니다.`,
@@ -600,17 +598,41 @@ async function handleImageFiles(fileList) {
   if (uploaded.length) {
     replaceEditorSelection(`\n${uploaded.map((result) => result.markdown).join("\n")}\n`);
   }
-  if (uploadStatus) {
-    uploadStatus.textContent = failed
+  setSaveStatus(
+    failed
       ? `사진 ${uploaded.length}장은 추가했고 ${failed}장은 올리지 못했습니다.`
-      : `사진 ${uploaded.length}장을 본문에 추가했습니다. 대체 텍스트를 수정해주세요.`;
-  }
+      : `사진 ${uploaded.length}장을 본문에 추가했습니다. 대체 텍스트를 수정해주세요.`,
+    failed ? "error" : "saved",
+  );
   showUploadResults(results);
 }
 
 upload?.addEventListener("change", async () => {
   await handleImageFiles(upload.files || []);
   upload.value = "";
+});
+
+function clipboardFiles(clipboardData) {
+  if (!clipboardData) return [];
+  const itemFiles = [...(clipboardData.items || [])]
+    .filter((item) => item.kind === "file")
+    .map((item) => item.getAsFile())
+    .filter(Boolean);
+  if (itemFiles.length) return itemFiles;
+  return [...(clipboardData.files || [])];
+}
+
+editor?.addEventListener("paste", async (event) => {
+  const files = clipboardFiles(event.clipboardData);
+  if (!files.length) return;
+  event.preventDefault();
+  const images = files.filter(acceptsImage);
+  if (images.length !== files.length) {
+    setSaveStatus("이미지가 아닌 파일은 붙여넣을 수 없습니다.", "error");
+    return;
+  }
+  setSaveStatus(`클립보드 이미지 ${images.length}장을 확인했습니다.`, "saving");
+  await handleImageFiles(images);
 });
 
 let dragDepth = 0;

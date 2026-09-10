@@ -1,39 +1,8 @@
-<!doctype html>
-<html lang="ko-KR">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <title>{{ seo.title }}</title>
-  <meta name="description" content="{{ seo.description }}">
-  <meta name="robots" content="{{ seo.robots }}">
-  <meta name="google-site-verification" content="mHtSw5dh0lxJzygGMVHGBu8pJLW2vlFBt2zSrsVhBeE">
-  <link rel="canonical" href="{{ seo.canonical }}">
-  <meta property="og:locale" content="ko_KR">
-  <meta property="og:site_name" content="{{ site_name }}">
-  <meta property="og:type" content="{{ seo.og_type }}">
-  <meta property="og:title" content="{{ seo.title }}">
-  <meta property="og:description" content="{{ seo.description }}">
-  <meta property="og:url" content="{{ seo.canonical }}">
-  {% if seo.og_image != "" %}<meta property="og:image" content="{{ seo.og_image }}">{% endif %}
-  <meta name="twitter:card" content="{% if seo.og_image != "" %}summary_large_image{% else %}summary{% endif %}">
-  <meta name="twitter:title" content="{{ seo.title }}">
-  <meta name="twitter:description" content="{{ seo.description }}">
-  <meta name="theme-color" content="#f2f4f7">
-  <link rel="icon" href="/assets/favicon.svg" type="image/svg+xml">
-  <script type="application/ld+json">{{ seo.json_ld|json|safe }}</script>
-  <script src="/theme.js"></script>
-  <link rel="stylesheet" href="/styles.css">
-</head>
-<body>
-  <a class="skip-link" href="#main">본문으로 건너뛰기</a>
-  <header class="site-header">
-    <div class="site-mark"><a class="site-title" href="/">{{ site_name }}</a></div>
-    <nav class="site-nav" aria-label="주요 메뉴">
-      <a href="/">글</a><a href="/about">소개</a><a href="/admin">관리</a>{% include "theme_toggle.html" %}
-    </nav>
-  </header>
-  {% block content %}{% endblock %}
-  <footer class="site-footer"><p>© 2026 {{ site_name }}</p><p><a href="/sitemap.xml">사이트맵</a></p></footer>
-  {% block scripts %}{% endblock %}
-</body>
-</html>
+{{define "public-head"}}<!doctype html><html lang="ko-KR"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>{{.SEO.Title}}</title><meta name="description" content="{{.SEO.Description}}"><meta name="robots" content="{{.SEO.Robots}}">
+<link rel="canonical" href="{{.SEO.Canonical}}"><meta property="og:locale" content="ko_KR"><meta property="og:site_name" content="{{.SiteName}}"><meta property="og:type" content="{{.SEO.OGType}}"><meta property="og:title" content="{{.SEO.Title}}"><meta property="og:description" content="{{.SEO.Description}}"><meta property="og:url" content="{{.SEO.Canonical}}">
+{{if .SEO.OGImage}}<meta property="og:image" content="{{.SEO.OGImage}}">{{end}}<meta name="twitter:card" content="{{if .SEO.OGImage}}summary_large_image{{else}}summary{{end}}"><meta name="twitter:title" content="{{.SEO.Title}}"><meta name="twitter:description" content="{{.SEO.Description}}">
+<meta name="theme-color" content="#f2f4f7"><link rel="icon" href="/assets/favicon.svg" type="image/svg+xml"><script type="application/ld+json">{{safeJS .SEO.JSONLD}}</script><script src="/theme.js"></script><link rel="stylesheet" href="/styles.css"></head><body>
+<a class="skip-link" href="#main">본문으로 건너뛰기</a><header class="site-header"><div class="site-mark"><a class="site-title" href="/">{{.SiteName}}</a></div><nav class="site-nav" aria-label="주요 메뉴"><a href="/">글</a><a href="/about">소개</a><a href="/admin">관리</a>{{template "theme-toggle" .}}</nav></header>{{end}}
+{{define "public-foot"}}<footer class="site-footer"><p>© 2026 {{.SiteName}}</p><p><a href="/sitemap.xml">사이트맵</a></p></footer></body></html>{{end}}

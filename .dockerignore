@@ -1,10 +1,14 @@
 *
-!docker/
-!docker/dockerfiles/
-!docker/dockerfiles/Dockerfile
-!target/
-!target/release/
-!target/release/wlog
+!go.mod
+!go.sum
+!cmd/
+!cmd/**
+!internal/
+!internal/**
+!templates/
+!templates/**
+!migrations/
+!migrations/**
 !styles.css
 !admin.js
 !mermaid.js
@@ -12,3 +16,6 @@
 !theme.js
 !assets/
 !assets/**
+!docker/
+!docker/dockerfiles/
+!docker/dockerfiles/Dockerfile
