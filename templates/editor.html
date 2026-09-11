@@ -4,7 +4,7 @@
 {{template "admin-nav-end" .}}
 
 <main class="editor-shell">
-  <form id="editor-form" class="editor-form" method="post" action="{{.Action}}" data-autosave-url="/admin/temp-posts/{{.Post.ID}}/autosave">
+  <form id="editor-form" class="editor-form" method="post" action="{{.Action}}" data-autosave-url="/admin/temp-posts/{{.Post.ID}}/autosave" data-preview-url="/admin/markdown-preview">
     <input type="hidden" name="csrf_token" id="csrf-token" value="{{.CSRF}}">
     <input type="hidden" name="description_manual" id="description-manual" value="{{if .Post.DescriptionManual}}true{{else}}false{{end}}">
     <div class="editor-mobile-tabs" role="tablist" aria-label="편집 화면">

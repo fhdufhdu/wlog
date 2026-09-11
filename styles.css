@@ -320,12 +320,18 @@ input:-webkit-autofill:focus {
   position: relative;
   grid-column: 2;
   grid-row: 1;
+  display: block;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
   justify-self: start;
   font-family: var(--serif);
   font-size: 18px;
   font-weight: 700;
   line-height: 1.45;
   letter-spacing: -.015em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .post-link::after {
@@ -347,16 +353,16 @@ input:-webkit-autofill:focus {
 .post-meta {
   grid-column: 3;
   grid-row: 1;
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 4px 10px;
+  display: grid;
+  min-width: 0;
+  justify-items: end;
+  gap: 2px;
   color: var(--muted);
   font-size: 11px;
+  line-height: 1.6;
 }
 .post-meta time { font-variant-numeric: tabular-nums; white-space: nowrap; }
-.post-topic { color: var(--link); font-weight: 650; }
+.post-topic { max-width: 100%; overflow: hidden; color: var(--link); font-weight: 650; text-overflow: ellipsis; white-space: nowrap; }
 
 .empty-state,
 .form-note { color: var(--muted); font-size: 13px; }
@@ -416,6 +422,7 @@ input:-webkit-autofill:focus {
 .prose p { margin: 0 0 1.3em; }
 .prose h2 { margin: 2em 0 .65em; padding-bottom: 6px; border-bottom: 1px solid var(--rule); font-size: 21px; line-height: 1.45; }
 .prose blockquote { margin: 1.7em 0; padding: 16px 18px; border: 1px solid var(--rule); background: var(--surface); color: var(--ink); font-style: italic; }
+.prose blockquote > :last-child { margin-bottom: 0; }
 
 .article-nav { display: flex; align-items: flex-start; gap: 32px; margin-top: 52px; padding-top: 24px; border-top: 2px solid var(--ink); }
 .article-nav-post { display: grid; min-width: 0; min-height: 70px; flex: 1 1 0; align-content: start; gap: 9px; text-decoration: none; }
@@ -500,8 +507,8 @@ input:-webkit-autofill:focus {
   .index-heading h1 { font-size: 23px; }
   .post-item { grid-template-columns: 30px minmax(0, 1fr); gap: 4px 8px; min-height: 88px; padding: 13px 0 12px; }
   .post-item::before { grid-column: 1; grid-row: 1 / 4; align-self: start; padding-top: 7px; }
-  .post-link { grid-column: 2; grid-row: 1; display: flex; min-height: 44px; align-items: center; font-size: 17px; }
-  .post-meta { grid-column: 2; grid-row: 2; justify-content: flex-start; }
+  .post-link { grid-column: 2; grid-row: 1; min-height: 44px; padding: 9px 0; font-size: 17px; }
+  .post-meta { grid-column: 2; grid-row: 2; justify-items: start; }
   .page-heading,
   .article-header { margin-bottom: 24px; }
   .page-heading h1,
@@ -524,9 +531,13 @@ input:-webkit-autofill:focus {
 .server-post-list .post-item > p {
   grid-column: 2 / -1;
   grid-row: 2;
+  min-width: 0;
   margin: 0;
+  overflow: hidden;
   color: var(--muted);
   font-size: 13px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .article-shell { width: 100%; max-width: 1016px; }
 .article-kicker { color: var(--signal) !important; font-weight: 700; }

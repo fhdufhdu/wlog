@@ -4,7 +4,7 @@
 {{template "admin-nav-end" .}}
 
 <main class="editor-shell">
-  <form id="editor-form" class="editor-form" method="post" action="/admin/about">
+  <form id="editor-form" class="editor-form" method="post" action="/admin/about" data-preview-url="/admin/markdown-preview">
     <input type="hidden" name="csrf_token" id="csrf-token" value="{{.CSRF}}">
     <div class="editor-mobile-tabs" role="tablist" aria-label="편집 화면">
       <button id="write-tab" class="editor-tab is-current" type="button" role="tab" aria-selected="true" aria-controls="write-panel">작성</button>

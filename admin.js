@@ -1,8 +1,3 @@
-import markdownit from "https://cdn.jsdelivr.net/npm/markdown-it@15.0.0/+esm";
-import taskLists from "https://cdn.jsdelivr.net/npm/markdown-it-task-lists@2.1.1/+esm";
-import footnote from "https://cdn.jsdelivr.net/npm/markdown-it-footnote@4.0.0/+esm";
-import DOMPurify from "https://cdn.jsdelivr.net/npm/dompurify@3.4.14/+esm";
-import hljs from "https://cdn.jsdelivr.net/npm/highlight.js@11.12.0/lib/common/+esm";
 import { renderMermaid } from "./mermaid.js";
 
 const form = document.querySelector("#editor-form");
@@ -30,14 +25,17 @@ let dirty = false;
 let changeVersion = 0;
 let descriptionEdited = descriptionManual?.value === "true";
 let autosaveController = null;
+let previewController = null;
 let previewTimer = null;
+let previewRequestVersion = 0;
 let isComposing = false;
 let lastPreviewMarkdown = null;
 let editorResizeFrame = null;
 let editorScrollFrame = null;
 let submitting = false;
 const autosaveUrl = form?.dataset.autosaveUrl;
-const previewDelay = 120;
+const previewUrl = form?.dataset.previewUrl;
+const previewDelay = 400;
 const maxUploadBytes = Number(upload?.dataset.maxUploadBytes || 0);
 
 function showOperation(titleText, detailText) {
@@ -64,107 +62,6 @@ operationDialog?.addEventListener("cancel", (event) => {
   if (operationDialog.dataset.state === "result") hideOperation();
 });
 operationClose?.addEventListener("click", hideOperation);
-
-function mathPlugin(md) {
-  md.inline.ruler.after("escape", "math_inline", (state, silent) => {
-    const start = state.pos;
-    if (state.src[start] !== "$" || state.src[start + 1] === "$") return false;
-    let end = start + 1;
-    while ((end = state.src.indexOf("$", end)) !== -1) {
-      let escapes = 0;
-      for (let index = end - 1; index > start && state.src[index] === "\\"; index -= 1) escapes += 1;
-      if (escapes % 2 === 0) break;
-      end += 1;
-    }
-    if (end === -1 || end === start + 1 || state.src.slice(start + 1, end).includes("\n")) return false;
-    if (!silent) {
-      const token = state.push("math_inline", "span", 0);
-      token.content = state.src.slice(start + 1, end);
-    }
-    state.pos = end + 1;
-    return true;
-  });
-
-  md.block.ruler.after("blockquote", "math_block", (state, startLine, endLine, silent) => {
-    const start = state.bMarks[startLine] + state.tShift[startLine];
-    const firstLine = state.src.slice(start, state.eMarks[startLine]);
-    if (!firstLine.startsWith("$$")) return false;
-    if (silent) return true;
-
-    const lines = [];
-    const opening = firstLine.slice(2);
-    if (opening.trimEnd().endsWith("$$")) {
-      lines.push(opening.trimEnd().slice(0, -2));
-      state.line = startLine + 1;
-    } else {
-      if (opening) lines.push(opening);
-      let line = startLine + 1;
-      for (; line < endLine; line += 1) {
-        const value = state.src.slice(state.bMarks[line] + state.tShift[line], state.eMarks[line]);
-        if (value.trimEnd().endsWith("$$")) {
-          lines.push(value.trimEnd().slice(0, -2));
-          line += 1;
-          break;
-        }
-        lines.push(value);
-      }
-      state.line = line;
-    }
-    const token = state.push("math_block", "span", 0);
-    token.block = true;
-    token.content = lines.join("\n").trim();
-    return true;
-  });
-
-  md.renderer.rules.math_inline = (tokens, index) =>
-    `<span data-math-style="inline">${md.utils.escapeHtml(tokens[index].content)}</span>`;
-  md.renderer.rules.math_block = (tokens, index) =>
-    `<span data-math-style="display">${md.utils.escapeHtml(tokens[index].content)}</span>\n`;
-}
-
-function headingIdPlugin(md) {
-  md.renderer.rules.heading_open = (tokens, index, options, environment, renderer) => {
-    const text = tokens[index + 1]?.content || "heading";
-    const base = text
-      .normalize("NFKC")
-      .toLowerCase()
-      .replace(/[^\p{Letter}\p{Number}]+/gu, "-")
-      .replace(/^-|-$/g, "") || "heading";
-    const headingIds = environment.headingIds || (environment.headingIds = new Map());
-    const sequence = (headingIds.get(base) || 0) + 1;
-    headingIds.set(base, sequence);
-    tokens[index].attrSet("id", `section-${base}${sequence > 1 ? `-${sequence}` : ""}`);
-    return renderer.renderToken(tokens, index, options);
-  };
-}
-
-const markdown = markdownit({
-  html: true,
-  breaks: true,
-  linkify: true,
-  highlight(source, language) {
-    if (language === "mermaid") return markdown.utils.escapeHtml(source);
-    if (language && hljs.getLanguage(language)) {
-      return hljs.highlight(source, { language, ignoreIllegals: true }).value;
-    }
-    return markdown.utils.escapeHtml(source);
-  },
-}).use(taskLists, { enabled: true }).use(footnote).use(mathPlugin).use(headingIdPlugin);
-
-const renderImage = markdown.renderer.rules.image;
-markdown.renderer.rules.image = (tokens, index, options, environment, renderer) => {
-  tokens[index].attrSet("loading", "lazy");
-  tokens[index].attrSet("decoding", "async");
-  return renderImage(tokens, index, options, environment, renderer);
-};
-
-function renderMarkdown(source) {
-  return DOMPurify.sanitize(markdown.render(source, {}), {
-    USE_PROFILES: { html: true },
-    ADD_TAGS: ["details", "summary", "figure", "figcaption", "mark", "kbd", "samp"],
-    ADD_ATTR: ["data-math-style", "loading", "decoding", "width", "height"],
-  });
-}
 
 function resizeEditor() {
   if (!editor || !writePane) return;
@@ -237,33 +134,64 @@ function showPreviewMessage(message, className = "preview-empty") {
   previewBody.replaceChildren(element);
 }
 
-function requestPreview() {
-  if (!previewBody || !editor) return;
+async function requestPreview() {
+  if (!previewBody || !editor || !previewUrl) return;
   window.clearTimeout(previewTimer);
   const markdown = editor.value;
   if (markdown === lastPreviewMarkdown) return;
 
+  previewController?.abort();
+  const controller = new AbortController();
+  const requestVersion = ++previewRequestVersion;
+  previewController = controller;
+
   if (!markdown.trim()) {
     lastPreviewMarkdown = markdown;
+    previewController = null;
     showPreviewMessage("본문을 입력하면 여기에 미리보기가 표시됩니다.");
     return;
   }
 
-  const html = renderMarkdown(markdown);
-  lastPreviewMarkdown = markdown;
-  previewBody.innerHTML = html;
-  window.requestAnimationFrame(() => {
-    void renderMermaid(previewBody);
-    window.dispatchEvent(new CustomEvent("wlog:markdown-rendered", {
-      detail: { root: previewBody, mermaidHandled: true },
-    }));
+  const body = new URLSearchParams({
+    csrf_token: csrfToken?.value || "",
+    markdown,
   });
+  try {
+    const response = await fetch(previewUrl, {
+      method: "POST",
+      body,
+      credentials: "same-origin",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      signal: controller.signal,
+    });
+    if (!response.ok) throw new Error(`미리보기 요청에 실패했습니다. (${response.status})`);
+    const result = await response.json();
+    if (requestVersion !== previewRequestVersion) return;
+    lastPreviewMarkdown = markdown;
+    previewBody.innerHTML = result.html;
+    window.requestAnimationFrame(() => {
+      if (requestVersion !== previewRequestVersion) return;
+      void renderMermaid(previewBody);
+      window.dispatchEvent(new CustomEvent("wlog:markdown-rendered", {
+        detail: { root: previewBody, mermaidHandled: true },
+      }));
+    });
+  } catch (error) {
+    if (error.name !== "AbortError" && requestVersion === previewRequestVersion) {
+      showPreviewMessage(error.message || "미리보기를 불러오지 못했습니다.");
+    }
+  } finally {
+    if (requestVersion === previewRequestVersion) previewController = null;
+  }
 }
 
 function schedulePreview(delay = previewDelay) {
   if (isComposing) return;
   window.clearTimeout(previewTimer);
-  previewTimer = window.setTimeout(requestPreview, delay);
+  previewController?.abort();
+  previewController = null;
+  previewRequestVersion += 1;
+  previewTimer = window.setTimeout(() => { void requestPreview(); }, delay);
 }
 
 function selectEditorTab(tab, focusTab = false) {
@@ -276,7 +204,7 @@ function selectEditorTab(tab, focusTab = false) {
   writeTab?.setAttribute("tabindex", preview ? "-1" : "0");
   previewTab?.setAttribute("tabindex", preview ? "0" : "-1");
   if (focusTab) (preview ? previewTab : writeTab)?.focus();
-  if (preview) requestPreview();
+  if (preview) void requestPreview();
   else resizeEditor();
 }
 
@@ -300,7 +228,7 @@ editor?.addEventListener("compositionend", () => {
   isComposing = false;
   updateDescription();
   updatePreviewMeta();
-  schedulePreview(0);
+  schedulePreview();
 });
 editor?.addEventListener("input", () => {
   resizeEditor();
@@ -387,7 +315,6 @@ document.querySelectorAll("[data-markdown]").forEach((button) => {
 
 async function autosave() {
   if (!dirty || !form || !autosaveUrl || autosaveController) return;
-  requestPreview();
   const savingVersion = changeVersion;
   autosaveController = new AbortController();
   setSaveStatus("저장 중…", "saving");
@@ -437,7 +364,8 @@ form?.addEventListener("invalid", (event) => {
 
 form?.addEventListener("submit", (event) => {
   submitting = true;
-  requestPreview();
+  previewController?.abort();
+  previewRequestVersion += 1;
   autosaveController?.abort();
   window.clearTimeout(previewTimer);
   form.querySelectorAll("button[type='submit']").forEach((button) => { button.disabled = true; });
@@ -670,4 +598,4 @@ writePane?.addEventListener("drop", async (event) => {
 selectEditorTab("write");
 resizeEditor();
 updatePreviewMeta();
-requestPreview();
+void requestPreview();

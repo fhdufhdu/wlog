@@ -1,11 +1,16 @@
 package web
 
 import (
+	"context"
+	"encoding/json"
+	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"strings"
 	"testing"
 
+	"github.com/fhdufhdu/wlog/internal/auth"
 	"github.com/fhdufhdu/wlog/internal/config"
 )
 
@@ -54,8 +59,10 @@ func TestEditorTemplateIncludesPublishingControls(t *testing.T) {
 	body := response.Body.String()
 	for _, expected := range []string{
 		`class="admin-body editor-body"`,
+		`href="/">블로그 보기</a>`,
 		`href="/admin/topics"`,
 		`class="editor-action-buttons"`,
+		`data-preview-url="/admin/markdown-preview"`,
 		`formaction="/admin/temp-posts/draft-id/save"`,
 		`action="/admin/temp-posts/draft-id/publish"`,
 		`>발행</button>`,
@@ -63,6 +70,34 @@ func TestEditorTemplateIncludesPublishingControls(t *testing.T) {
 		if !strings.Contains(body, expected) {
 			t.Errorf("editor missing %q", expected)
 		}
+	}
+}
+
+func TestMarkdownPreviewUsesServerRenderer(t *testing.T) {
+	form := url.Values{
+		"csrf_token": {"csrf-token"},
+		"markdown":   {"$E = N^A\\;(mod\\;C)$\n\n<script>alert(1)</script>"},
+	}
+	request := httptest.NewRequest(http.MethodPost, "/admin/markdown-preview", strings.NewReader(form.Encode()))
+	request.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	request = request.WithContext(context.WithValue(request.Context(), sessionKey{}, auth.Session{CSRF: "csrf-token"}))
+	response := httptest.NewRecorder()
+
+	if err := (&Controller{}).markdownPreview(response, request); err != nil {
+		t.Fatal(err)
+	}
+	var payload map[string]string
+	if err := json.NewDecoder(response.Body).Decode(&payload); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(payload["html"], `E = N^A\;(mod\;C)`) {
+		t.Fatalf("LaTeX command was not preserved: %s", payload["html"])
+	}
+	if strings.Contains(payload["html"], "<script") {
+		t.Fatalf("preview HTML was not sanitized: %s", payload["html"])
+	}
+	if got := response.Header().Get("Cache-Control"); got != "no-store" {
+		t.Errorf("Cache-Control = %q", got)
 	}
 }
 

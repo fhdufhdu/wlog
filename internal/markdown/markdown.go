@@ -36,19 +36,28 @@ func Render(source string) string {
 		goldmark.WithRendererOptions(rendererhtml.WithUnsafe(), rendererhtml.WithHardWraps()),
 	)
 	var out bytes.Buffer
+	mathTokenPrefix := "WLOGMATHTOKEN"
+	for strings.Contains(source, mathTokenPrefix) {
+		mathTokenPrefix += "X"
+	}
 	protected := []string{}
 	source = protectedCodePattern.ReplaceAllStringFunc(source, func(value string) string {
 		token := fmt.Sprintf("WLOGCODETOKEN%dX", len(protected))
 		protected = append(protected, value)
 		return token
 	})
+	protectedMath := []string{}
 	source = displayMathPattern.ReplaceAllStringFunc(source, func(value string) string {
 		match := displayMathPattern.FindStringSubmatch(value)
-		return `<span data-math-style="display">` + html.EscapeString(match[1]) + `</span>`
+		token := fmt.Sprintf("%s%dX", mathTokenPrefix, len(protectedMath))
+		protectedMath = append(protectedMath, `<span data-math-style="display">`+html.EscapeString(match[1])+`</span>`)
+		return token
 	})
 	source = inlineMathPattern.ReplaceAllStringFunc(source, func(value string) string {
 		match := inlineMathPattern.FindStringSubmatch(value)
-		return `<span data-math-style="inline">` + html.EscapeString(match[1]) + `</span>`
+		token := fmt.Sprintf("%s%dX", mathTokenPrefix, len(protectedMath))
+		protectedMath = append(protectedMath, `<span data-math-style="inline">`+html.EscapeString(match[1])+`</span>`)
+		return token
 	})
 	for index, value := range protected {
 		source = strings.ReplaceAll(source, fmt.Sprintf("WLOGCODETOKEN%dX", index), value)
@@ -60,6 +69,10 @@ func Render(source string) string {
 	if err := md.Convert([]byte(source), &out); err != nil {
 		return ""
 	}
+	rendered := out.String()
+	for index, value := range protectedMath {
+		rendered = strings.ReplaceAll(rendered, fmt.Sprintf("%s%dX", mathTokenPrefix, index), value)
+	}
 	policy := bluemonday.UGCPolicy()
 	policy.AllowElements("details", "summary", "figure", "figcaption", "mark", "kbd", "samp", "sub", "sup", "input")
 	policy.AllowAttrs("class", "id", "title").Globally()
@@ -68,7 +81,7 @@ func Render(source string) string {
 	policy.AllowAttrs("open").OnElements("details")
 	policy.AllowAttrs("loading", "decoding", "width", "height").OnElements("img")
 	policy.AllowAttrs("type", "checked", "disabled").OnElements("input")
-	return policy.Sanitize(out.String())
+	return policy.Sanitize(rendered)
 }
 
 func Excerpt(source string, limit int) string {

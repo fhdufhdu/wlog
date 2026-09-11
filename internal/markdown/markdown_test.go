@@ -31,3 +31,12 @@ func TestMathAndMermaidHooksArePreserved(t *testing.T) {
 		t.Fatalf("client hooks missing: %s", html)
 	}
 }
+
+func TestMathLatexCommandsAreNotConsumedByMarkdown(t *testing.T) {
+	html := Render("- 암호화: $E = N^A\\;(mod\\;C)$\n\n$$x\\,y\\!z$$\n\n`WLOGMATHTOKEN0X`")
+	for _, want := range []string{`E = N^A\;(mod\;C)`, `x\,y\!z`, `WLOGMATHTOKEN0X`} {
+		if !strings.Contains(html, want) {
+			t.Fatalf("LaTeX command %q was not preserved: %s", want, html)
+		}
+	}
+}

@@ -79,6 +79,7 @@ func (c *Controller) Route() *app.AppMux {
 	admin.HandleFunc("POST /admin/temp-posts/{id}/autosave", c.autosave)
 	admin.HandleFunc("POST /admin/temp-posts/{id}/publish", c.publish)
 	admin.HandleFunc("POST /admin/temp-posts/{id}/delete", c.deleteTemp)
+	admin.HandleFunc("POST /admin/markdown-preview", c.markdownPreview)
 	admin.HandleFunc("POST /admin/uploads", c.upload)
 	admin.RegisterAppMiddlewares(c.requireAdmin)
 	return app.NewAppMux().Nest(public).Nest(admin)
@@ -467,6 +468,18 @@ func (c *Controller) autosave(w http.ResponseWriter, r *http.Request) error {
 	}
 	w.Header().Set("Content-Type", "application/json")
 	return json.NewEncoder(w).Encode(map[string]string{"saved_at": saved.UpdatedAt.UTC().Format(time.RFC3339)})
+}
+
+func (c *Controller) markdownPreview(w http.ResponseWriter, r *http.Request) error {
+	if err := parseForm(r); err != nil {
+		return err
+	}
+	if err := verifyCSRF(session(r).CSRF, r.FormValue("csrf_token")); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Cache-Control", "no-store")
+	return json.NewEncoder(w).Encode(map[string]string{"html": markdownutil.Render(r.FormValue("markdown"))})
 }
 func (c *Controller) deletePost(w http.ResponseWriter, r *http.Request) error {
 	return c.deleteItem(w, r, c.posts.Delete)
