@@ -657,7 +657,11 @@ input:-webkit-autofill:focus {
   pointer-events: none;
 }
 .editor-preview-pane { background: var(--field); }
-.editor-pane-inner { width: min(100%, 760px); margin: 0 auto; padding: 38px clamp(28px, 4vw, 56px) 80px; }
+.editor-pane-inner {
+  width: min(100%, 760px);
+  margin: 0 auto;
+  padding: 38px clamp(28px, 4vw, 56px) 80px;
+}
 .editor-title-input {
   min-height: 58px;
   border: 0;
@@ -695,8 +699,10 @@ input:-webkit-autofill:focus {
   border-top: 1px solid var(--strong-rule);
   border-bottom: 1px solid var(--strong-rule);
   background: var(--paper);
-  scrollbar-width: thin;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
 }
+.markdown-toolbar::-webkit-scrollbar { display: none; }
 .markdown-toolbar-group { display: flex; flex: 0 0 auto; align-items: stretch; border-right: 1px solid var(--rule); padding-right: 6px; }
 .markdown-toolbar button,
 .markdown-toolbar .upload-control {
@@ -719,6 +725,8 @@ input:-webkit-autofill:focus {
 .markdown-toolbar .upload-control:hover { background: var(--surface); color: var(--link); }
 .upload-control input { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
 .markdown-editor {
+  display: block;
+  height: auto;
   min-height: max(52vh, 520px);
   border: 0;
   padding: 24px 0;
@@ -726,7 +734,9 @@ input:-webkit-autofill:focus {
   font: 14px/1.78 ui-monospace, SFMono-Regular, Consolas, monospace;
   overflow-y: hidden;
   resize: none;
+  scrollbar-width: none;
 }
+.markdown-editor::-webkit-scrollbar { display: none; }
 .markdown-editor:focus { border: 0; outline: 0; box-shadow: none; }
 .editor-preview-document { width: min(100%, 70ch); margin: 0 auto; padding: 46px clamp(28px, 4vw, 58px) 100px; }
 .editor-preview-title { margin: 0 0 18px; overflow-wrap: anywhere; font: 700 clamp(29px, 3vw, 40px)/1.38 var(--serif); letter-spacing: -.035em; }

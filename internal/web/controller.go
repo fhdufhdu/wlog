@@ -90,7 +90,11 @@ func (c *Controller) StaticRoutes() *app.AppMux {
 	for _, name := range []string{"styles.css", "admin.js", "theme.js", "mermaid.js", "math.js"} {
 		filename := name
 		m.Handle("GET /"+name, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			w.Header().Set("Cache-Control", "public, max-age=3600")
+			cache := "public, max-age=3600"
+			if filename == "admin.js" || filename == "styles.css" {
+				cache = "no-cache"
+			}
+			w.Header().Set("Cache-Control", cache)
 			http.ServeFile(w, r, filename)
 		}))
 	}

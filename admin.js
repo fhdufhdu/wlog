@@ -3,6 +3,7 @@ import { renderMermaid } from "./mermaid.js";
 const form = document.querySelector("#editor-form");
 const upload = document.querySelector("#image-upload");
 const editor = document.querySelector("#content_markdown");
+const editorToolbar = document.querySelector(".markdown-toolbar");
 const saveStatus = document.querySelector("#save-status");
 const title = document.querySelector("#title");
 const slug = document.querySelector("#slug");
@@ -12,6 +13,7 @@ const descriptionManual = document.querySelector("#description-manual");
 const writeTab = document.querySelector("#write-tab");
 const previewTab = document.querySelector("#preview-tab");
 const previewBody = document.querySelector("#preview-body");
+const previewPane = document.querySelector("#preview-panel");
 const previewTitle = document.querySelector("#preview-title");
 const csrfToken = document.querySelector("#csrf-token");
 const writePane = document.querySelector("#write-panel");
@@ -32,7 +34,12 @@ let isComposing = false;
 let lastPreviewMarkdown = null;
 let editorResizeFrame = null;
 let editorScrollFrame = null;
+let paneScrollFrame = null;
+let pendingPaneScroll = null;
+let lastScrollSource = writePane;
+let lastScrollProgress = 0;
 let submitting = false;
+const programmedScrollTops = new WeakMap();
 const autosaveUrl = form?.dataset.autosaveUrl;
 const previewUrl = form?.dataset.previewUrl;
 const previewDelay = 400;
@@ -64,26 +71,22 @@ operationDialog?.addEventListener("cancel", (event) => {
 operationClose?.addEventListener("click", hideOperation);
 
 function resizeEditor() {
-  if (!editor || !writePane) return;
+  if (!editor || !writePane || !editor.getClientRects().length) return;
   window.cancelAnimationFrame(editorResizeFrame);
   window.cancelAnimationFrame(editorScrollFrame);
+  const paneScrollTop = writePane.scrollTop;
+  const internalScrollTop = editor.scrollTop;
+  const keepCaretVisible = document.activeElement === editor;
+  const caretAtEnd = keepCaretVisible && editor.selectionEnd === editor.value.length;
   editorResizeFrame = window.requestAnimationFrame(() => {
-    if (!editor.getClientRects().length) return;
-    const paneScrollTop = writePane.scrollTop;
-    const internalScroll = editor.scrollTop;
-    const keepCaretVisible = document.activeElement === editor;
-    const caretAtEnd = keepCaretVisible && editor.selectionEnd === editor.value.length;
-
     editor.style.height = "0px";
     const contentHeight = editor.scrollHeight;
     editor.style.height = `${contentHeight}px`;
     editor.scrollTop = 0;
-    writePane.scrollTop = paneScrollTop + internalScroll;
+    writePane.scrollTop = paneScrollTop + internalScrollTop;
 
-    if (!keepCaretVisible) return;
+    if (!caretAtEnd) return;
     editorScrollFrame = window.requestAnimationFrame(() => {
-      if (!caretAtEnd) return;
-
       const paneRect = writePane.getBoundingClientRect();
       const editorRect = editor.getBoundingClientRect();
       const comfortSpace = Math.min(160, writePane.clientHeight * 0.24);
@@ -93,6 +96,84 @@ function resizeEditor() {
     });
   });
 }
+
+function editorContentScrollGeometry() {
+  if (!writePane || !editor) return { start: 0, end: 0 };
+  const paneRect = writePane.getBoundingClientRect();
+  const editorRect = editor.getBoundingClientRect();
+  const editorTop = writePane.scrollTop + editorRect.top - paneRect.top;
+  const toolbarHeight = editorToolbar?.offsetHeight || 0;
+  const maxScrollTop = Math.max(0, writePane.scrollHeight - writePane.clientHeight);
+  const start = Math.min(maxScrollTop, Math.max(0, editorTop - toolbarHeight));
+  const end = Math.min(maxScrollTop, Math.max(start, editorTop + editor.offsetHeight - writePane.clientHeight));
+  return { start, end };
+}
+
+function editorContentScrollProgress() {
+  if (!writePane) return 0;
+  const { start, end } = editorContentScrollGeometry();
+  const scrollRange = end - start;
+  if (scrollRange <= 0) return 0;
+  return Math.min(1, Math.max(0, (writePane.scrollTop - start) / scrollRange));
+}
+
+function paneScrollProgress(pane) {
+  if (!pane) return 0;
+  const scrollRange = pane.scrollHeight - pane.clientHeight;
+  if (scrollRange <= 0) return 0;
+  return Math.min(1, Math.max(0, pane.scrollTop / scrollRange));
+}
+
+function setPaneScrollProgress(pane, progress) {
+  if (!pane) return;
+  const scrollRange = Math.max(0, pane.scrollHeight - pane.clientHeight);
+  const scrollTop = scrollRange * Math.min(1, Math.max(0, progress));
+  setPaneScrollTop(pane, scrollTop);
+}
+
+function setPaneScrollTop(pane, scrollTop) {
+  if (!pane) return;
+  if (Math.abs(pane.scrollTop - scrollTop) < 1) return;
+  programmedScrollTops.set(pane, scrollTop);
+  pane.scrollTop = scrollTop;
+}
+
+function setEditorContentScrollProgress(_pane, progress) {
+  const { start, end } = editorContentScrollGeometry();
+  setPaneScrollTop(writePane, start + ((end - start) * Math.min(1, Math.max(0, progress))));
+}
+
+function restorePreviewScroll(progress) {
+  lastScrollProgress = Math.min(1, Math.max(0, progress));
+  if (previewPane?.getClientRects().length) setPaneScrollProgress(previewPane, lastScrollProgress);
+}
+
+function syncPaneScroll(source, target, readProgress = paneScrollProgress, writeProgress = setPaneScrollProgress) {
+  const programmedScrollTop = programmedScrollTops.get(source);
+  if (programmedScrollTop !== undefined && Math.abs(source.scrollTop - programmedScrollTop) < 1) {
+    return;
+  }
+  programmedScrollTops.delete(source);
+  lastScrollSource = source;
+  lastScrollProgress = readProgress(source);
+  pendingPaneScroll = { target, progress: lastScrollProgress, writeProgress };
+  if (paneScrollFrame !== null) return;
+  paneScrollFrame = window.requestAnimationFrame(() => {
+    paneScrollFrame = null;
+    const pending = pendingPaneScroll;
+    pendingPaneScroll = null;
+    if (pending?.target.getClientRects().length) {
+      pending.writeProgress(pending.target, pending.progress);
+    }
+  });
+}
+
+writePane?.addEventListener("scroll", () => {
+  syncPaneScroll(writePane, previewPane, editorContentScrollProgress, setPaneScrollProgress);
+}, { passive: true });
+previewPane?.addEventListener("scroll", () => {
+  syncPaneScroll(previewPane, writePane, paneScrollProgress, setEditorContentScrollProgress);
+}, { passive: true });
 
 function setSaveStatus(message, state = "") {
   if (!saveStatus) return;
@@ -167,14 +248,24 @@ async function requestPreview() {
     if (!response.ok) throw new Error(`미리보기 요청에 실패했습니다. (${response.status})`);
     const result = await response.json();
     if (requestVersion !== previewRequestVersion) return;
+    const preservedScrollProgress = lastScrollSource === previewPane
+      ? lastScrollProgress
+      : editorContentScrollProgress();
     lastPreviewMarkdown = markdown;
     previewBody.innerHTML = result.html;
     window.requestAnimationFrame(() => {
       if (requestVersion !== previewRequestVersion) return;
-      void renderMermaid(previewBody);
+      restorePreviewScroll(preservedScrollProgress);
+      const mermaidRender = renderMermaid(previewBody);
       window.dispatchEvent(new CustomEvent("wlog:markdown-rendered", {
         detail: { root: previewBody, mermaidHandled: true },
       }));
+      const realignAfterMermaid = () => {
+        if (requestVersion === previewRequestVersion) {
+          restorePreviewScroll(preservedScrollProgress);
+        }
+      };
+      void mermaidRender.then(realignAfterMermaid, realignAfterMermaid);
     });
   } catch (error) {
     if (error.name !== "AbortError" && requestVersion === previewRequestVersion) {
@@ -196,6 +287,10 @@ function schedulePreview(delay = previewDelay) {
 
 function selectEditorTab(tab, focusTab = false) {
   const preview = tab === "preview";
+  const compactLayout = window.matchMedia("(max-width: 959px)").matches;
+  const outgoingScrollProgress = compactLayout
+    ? (preview ? editorContentScrollProgress() : paneScrollProgress(previewPane))
+    : 0;
   if (form) form.dataset.mobileView = preview ? "preview" : "write";
   writeTab?.classList.toggle("is-current", !preview);
   previewTab?.classList.toggle("is-current", preview);
@@ -204,6 +299,15 @@ function selectEditorTab(tab, focusTab = false) {
   writeTab?.setAttribute("tabindex", preview ? "-1" : "0");
   previewTab?.setAttribute("tabindex", preview ? "0" : "-1");
   if (focusTab) (preview ? previewTab : writeTab)?.focus();
+  if (compactLayout) {
+    const incomingPane = preview ? previewPane : writePane;
+    lastScrollSource = incomingPane;
+    lastScrollProgress = outgoingScrollProgress;
+    window.requestAnimationFrame(() => {
+      if (preview) setPaneScrollProgress(previewPane, outgoingScrollProgress);
+      else setEditorContentScrollProgress(writePane, outgoingScrollProgress);
+    });
+  }
   if (preview) void requestPreview();
   else resizeEditor();
 }
@@ -310,6 +414,12 @@ document.querySelectorAll("[data-markdown]").forEach((button) => {
       if (selected.includes("\n")) wrapSelection("$$\n", "\n$$", "E = mc^2");
       else wrapSelection("$", "$", "E = mc^2");
     }
+  });
+});
+
+document.querySelectorAll("[data-insert]").forEach((button) => {
+  button.addEventListener("click", () => {
+    replaceEditorSelection(button.dataset.insert || "");
   });
 });
 

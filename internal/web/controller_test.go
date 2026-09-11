@@ -63,6 +63,12 @@ func TestEditorTemplateIncludesPublishingControls(t *testing.T) {
 		`href="/admin/topics"`,
 		`class="editor-action-buttons"`,
 		`data-preview-url="/admin/markdown-preview"`,
+		`data-insert="&amp;emsp;"`,
+		`>한 칸 들여쓰기</button>`,
+		`>줄바꿈 방지</button>`,
+		`>한글 한 칸</button>`,
+		`href="/styles.css?v=20260911-5"`,
+		`src="/admin.js?v=20260911-6"`,
 		`formaction="/admin/temp-posts/draft-id/save"`,
 		`action="/admin/temp-posts/draft-id/publish"`,
 		`>발행</button>`,
@@ -70,6 +76,31 @@ func TestEditorTemplateIncludesPublishingControls(t *testing.T) {
 		if !strings.Contains(body, expected) {
 			t.Errorf("editor missing %q", expected)
 		}
+	}
+}
+
+func TestMutableStaticAssetsAlwaysRevalidate(t *testing.T) {
+	workingDirectory, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chdir("../.."); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chdir(workingDirectory) })
+
+	handler := (&Controller{}).StaticRoutes().Apply()
+	for _, path := range []string{"/admin.js?v=20260911-6", "/styles.css?v=20260911-5"} {
+		t.Run(path, func(t *testing.T) {
+			response := httptest.NewRecorder()
+			handler.ServeHTTP(response, httptest.NewRequest(http.MethodGet, path, nil))
+			if response.Code != http.StatusOK {
+				t.Fatalf("status = %d", response.Code)
+			}
+			if got := response.Header().Get("Cache-Control"); got != "no-cache" {
+				t.Errorf("Cache-Control = %q", got)
+			}
+		})
 	}
 }
 

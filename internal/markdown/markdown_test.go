@@ -1,6 +1,7 @@
 package markdown
 
 import (
+	"html"
 	"slices"
 	"strings"
 	"testing"
@@ -37,6 +38,15 @@ func TestMathLatexCommandsAreNotConsumedByMarkdown(t *testing.T) {
 	for _, want := range []string{`E = N^A\;(mod\;C)`, `x\,y\!z`, `WLOGMATHTOKEN0X`} {
 		if !strings.Contains(html, want) {
 			t.Fatalf("LaTeX command %q was not preserved: %s", want, html)
+		}
+	}
+}
+
+func TestRenderPreservesSpacingEntities(t *testing.T) {
+	rendered := html.UnescapeString(Render("&emsp;들여쓰기\n\n&nbsp;줄바꿈 방지\n\n&#12288;한글 한 칸"))
+	for _, want := range []string{"\u2003들여쓰기", "\u00a0줄바꿈 방지", "\u3000한글 한 칸"} {
+		if !strings.Contains(rendered, want) {
+			t.Fatalf("spacing entity %q was not preserved: %s", want, rendered)
 		}
 	}
 }

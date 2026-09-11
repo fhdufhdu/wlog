@@ -73,7 +73,7 @@
 </main>
 <script type="module" src="/mermaid.js"></script>
 <script type="module" src="/math.js"></script>
-<script type="module" src="/admin.js"></script>
+<script type="module" src="/admin.js?v=20260911-6"></script>
 {{template "admin-foot" .}}
 
 {{define "toolbar"}}
@@ -91,6 +91,11 @@
     <button type="button" data-markdown="code">코드</button>
     <button type="button" data-markdown="math">수식</button>
     <button type="button" data-markdown="mermaid">Mermaid</button>
+  </div>
+  <div class="markdown-toolbar-group" aria-label="공백 삽입">
+    <button type="button" data-insert="&amp;emsp;" title="문단 앞에 글자 한 칸 너비의 공백을 넣습니다">한 칸 들여쓰기</button>
+    <button type="button" data-insert="&amp;nbsp;" title="공백 위치에서 줄이 나뉘지 않게 합니다">줄바꿈 방지</button>
+    <button type="button" data-insert="&amp;#12288;" title="한글 한 글자 너비의 전각 공백을 넣습니다">한글 한 칸</button>
   </div>
   <label class="upload-control" title="파일을 선택하거나 편집기에 이미지를 붙여넣으세요">사진<input id="image-upload" type="file" accept="image/jpeg,image/png,image/gif,image/webp,image/svg+xml" data-max-upload-bytes="{{.MaxUploadBytes}}" multiple></label>
 </div>
